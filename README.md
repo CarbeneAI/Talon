@@ -1,11 +1,13 @@
+<p align="center">
+  <img src="images/banner.svg" alt="Talon Banner" width="100%">
+</p>
+
 # Talon
 
 **Penetration Testing MCP for Claude Code**
 
 ![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)
 ![Platform: Claude Code](https://img.shields.io/badge/Platform-Claude_Code-purple.svg)
-
-<!-- Banner: images/talon-banner.svg -->
 
 Talon connects Claude Code to a Kali Linux (or any pentesting) VM via SSH MCP, enabling AI-assisted penetration testing with automated recon, structured enumeration, and professional reporting — all from your terminal.
 

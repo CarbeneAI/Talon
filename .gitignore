@@ -1,0 +1,48 @@
+# Environment files — never commit these
+.env
+*.env.local
+
+# SSH keys — never commit these
+*.pem
+*.key
+id_rsa
+id_ed25519
+id_ecdsa
+known_hosts
+
+# MCP config with real credentials
+mcp-config.json
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# Linux
+*~
+.fuse_hidden*
+.directory
+.Trash-*
+
+# Editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Scan output files (keep local, not in repo)
+*.nmap
+*.gnmap
+*.xml
+scans/
+loot/
+results/
+
+# Temporary files
+*.tmp
+*.bak
+*.orig
+
+# Node (if any tooling added later)
+node_modules/

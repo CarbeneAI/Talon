@@ -1,0 +1,13 @@
+{
+  "mcpServers": {
+    "kali-ssh": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@anthropic-ai/mcp-server-ssh",
+        "ssh://YOUR_USERNAME@YOUR_KALI_IP"
+      ],
+      "description": "Kali Linux pentesting VM for security testing and CTF work"
+    }
+  }
+}

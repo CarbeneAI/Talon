@@ -13,6 +13,16 @@ Talon connects Claude Code to a Kali Linux (or any pentesting) VM via SSH MCP, e
 
 ---
 
+## About CarbeneAI
+
+Talon is one of four open-source AI security proofs of concept published by CarbeneAI, alongside [Harbinger](https://github.com/CarbeneAI/Harbinger) (AI threat intel), [Specter](https://github.com/CarbeneAI/Specter) (AI-assisted SIEM), and [Forge](https://github.com/CarbeneAI/Forge) (AI operations platform). They are not the product. They exist so prospects can see CarbeneAI's founder, Clint P. Garrison, understands the end-to-end strategy of AI in security operations.
+
+CarbeneAI is a Fractional CTO + CISO + AI Strategy advisory practice for CEOs and Boards in risk-driven environments. Clint owns the strategy and risk seat at the client table; CarbeneAI's team and partner network deliver execution.
+
+Use this repo. Fork it. Improve it. For CarbeneAI advisory engagement: [carbene.ai](https://carbene.ai)
+
+---
+
 ## What It Does
 
 Talon packages the `@anthropic-ai/mcp-server-ssh` server with a complete penetration testing methodology:

@@ -1,0 +1,8 @@
+# Talon AI Red-Team runner dependencies.
+pyyaml>=6.0
+garak>=0.9
+
+# Installed separately (heavier / optional per phase):
+#   promptfoo   -> npm install -g promptfoo         (phase 2 evals)
+#   pyrit       -> pip install pyrit                 (phase 5 orchestration)
+#   modelscan   -> pip install modelscan             (phase 6 supply chain)

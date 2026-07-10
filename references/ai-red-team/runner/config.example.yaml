@@ -1,0 +1,26 @@
+# Talon AI Red-Team engagement config.
+# Copy to config.yaml and edit. Never put a real API key in this file.
+
+# You MUST set this to true to confirm you have written authorization to test
+# the target. The runner refuses to run otherwise.
+authorized: false
+
+target:
+  name: "acme-support-bot"        # used only to name the output folder
+  type: "openai"                  # only "openai" is wired today (compatible/rest = roadmap)
+  model: "gpt-4o-mini"            # model name the provider expects
+  endpoint: ""                    # reserved for the roadmap compatible/rest types
+  api_key_env: "OPENAI_API_KEY"   # NAME of the env var holding the key (not the key)
+
+# Which phases to run. garak-backed phases run automatically; the others print
+# guidance for the tester.
+phases:
+  - "2_prompt_injection"
+  - "3_jailbreak"
+  - "4_disclosure"
+  # - "1_recon"          # manual / capability probes
+  # - "5_tool_abuse"     # manual / PyRIT against the live agent
+  # - "6_supply_chain"   # modelscan against the model artifact
+
+# Optional: path to a promptfoo redteam config to run after garak.
+promptfoo_config: null

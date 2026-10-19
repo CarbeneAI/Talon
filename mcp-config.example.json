@@ -1,13 +1,9 @@
 {
   "mcpServers": {
     "kali-ssh": {
-      "command": "npx",
-      "args": [
-        "-y",
-        "@anthropic-ai/mcp-server-ssh",
-        "ssh://YOUR_USERNAME@YOUR_KALI_IP"
-      ],
-      "description": "Kali Linux pentesting VM for security testing and CTF work"
+      "type": "stdio",
+      "command": "/REPLACE/WITH/REVIEWED/SSH-MCP-SERVER",
+      "args": ["REPLACE_WITH_PROVIDER_DOCUMENTED_ARGUMENTS"]
     }
   }
 }

@@ -19,24 +19,32 @@ or passed on a command line.
 from __future__ import annotations
 
 import argparse
+import html
 import json
 import os
 import re
+import string
 import sys
+import tempfile
 from datetime import datetime, timezone
 from pathlib import Path
-from urllib.parse import urlparse
+from typing import NamedTuple
 
 try:
     import yaml
 except ImportError:
     sys.exit("Missing dependency: pyyaml. Install with: pip install -r requirements.txt")
 
-# garak probe suites per phase. Kept conservative and well-known.
+# Garak 0.17.1 probe selectors per phase. Keep selections explicit and covered
+# by test_garak_cli.py so phase names map to the pinned CLI selectors.
 PHASE_GARAK_PROBES = {
     "2_prompt_injection": ["promptinject", "latentinjection"],
     "3_jailbreak": ["dan", "grandma"],
-    "4_disclosure": ["leakreplay", "xss"],
+    "4_disclosure": [
+        "leakreplay",
+        "web_injection.MarkdownXSS",
+        "web_injection.TaskXSS",
+    ],
 }
 # Phases handled by other means (documented, not auto-run here).
 PHASE_MANUAL = {
@@ -50,7 +58,8 @@ VALID_PHASES = list(PHASE_GARAK_PROBES) + list(PHASE_MANUAL)
 # refuse them rather than silently hit the wrong target.
 SUPPORTED_TYPES = {"openai"}
 ROADMAP_TYPES = {"openai_compatible", "rest"}
-# Redact anything that looks like a key or bearer token from tool output on disk.
+# Redact only the token patterns below from tool logs and generated reports.
+# Raw tool reports remain unchanged; this is not comprehensive secret detection.
 SECRET_RE = re.compile(r"(sk-[A-Za-z0-9_-]{16,}|Bearer\s+\S+|xoxb-\S+|gh[pousr]_[A-Za-z0-9]{20,})")
 SAFE_NAME = re.compile(r"[^A-Za-z0-9._-]+")
 
@@ -105,13 +114,15 @@ def validate(cfg: dict) -> dict:
 
     endpoint = str(target.get("endpoint") or "").strip()
     if endpoint:
-        parsed = urlparse(endpoint)
-        if parsed.scheme not in {"http", "https"} or not parsed.netloc:
-            fail("target.endpoint must be an http(s) URL")
+        fail("target.endpoint is not supported for target.type 'openai'; "
+             "leave it empty. Custom endpoint routing is not wired.")
 
     key_env = str(target.get("api_key_env") or "").strip()
     if not key_env:
         fail("target.api_key_env is required (name of the env var holding the API key)")
+    if key_env != "OPENAI_API_KEY":
+        fail("target.api_key_env must be OPENAI_API_KEY for target.type 'openai'; "
+             "custom key variables are not mapped to garak.")
     if not os.environ.get(key_env):
         fail(f"environment variable {key_env} is not set (holds the target API key)")
 
@@ -158,9 +169,9 @@ def build_garak_cmd(cfg: dict, probes: list[str], report_prefix: Path) -> list[s
     # the provider's own env var (e.g. OPENAI_API_KEY).
     return [
         "garak",
-        "--model_type", "openai",
-        "--model_name", cfg["model"],
-        "--probes", ",".join(probes),
+        "--target_type", "openai",
+        "--target_name", cfg["model"],
+        "--spec", ",".join(f"probes.{probe}" for probe in probes),
         "--report_prefix", str(report_prefix),
     ]
 
@@ -180,42 +191,112 @@ def run_cmd(cmd: list[str], cwd: Path) -> tuple[int, str]:
     return proc.returncode, (proc.stdout or "") + (proc.stderr or "")
 
 
-def parse_garak_hits(out_dir: Path) -> tuple[list[dict], list[str]]:
-    """Read garak's purpose-built hitlog(s). Every line in a hitlog is a
-    confirmed hit, so there is no pass/fail threshold to reimplement. Field
-    extraction is defensive: garak's schema varies by version, so we fall back
-    gracefully and always surface the raw file path for the tester."""
+class HitlogIssue(NamedTuple):
+    filename: str
+    line_number: int | None
+    reason: str
+
+
+class HitlogParseResult(NamedTuple):
+    hits: list[dict]
+    raw_files: list[str]
+    issues: list[HitlogIssue]
+
+
+PARSE_ISSUE_MESSAGES = {
+    "invalid_utf8": "physical line is not valid UTF-8",
+    "invalid_json": "physical line could not be decoded as standard JSON",
+    "non_object": "JSON record is not an object",
+    "read_error": "hitlog could not be read completely",
+}
+
+
+def _reject_json_constant(_value: str) -> None:
+    # Python otherwise accepts NaN/Infinity, which are not JSON constants.
+    raise ValueError
+
+
+def parse_garak_hits(out_dir: Path) -> HitlogParseResult:
+    """Parse physical UTF-8 JSONL records and report incomplete evidence.
+
+    Preserve existing extraction, including string rendering of structured
+    prompt/output values. Issues retain only location and fixed reason codes,
+    never rejected payloads or exception text. Raw files are read-only.
+    """
     hits: list[dict] = []
     raw_files: list[str] = []
+    issues: list[HitlogIssue] = []
     for hl in sorted(out_dir.glob("*.hitlog.jsonl")):
         raw_files.append(hl.name)
-        for line in hl.read_text(encoding="utf-8", errors="replace").splitlines():
-            line = line.strip()
-            if not line:
-                continue
-            try:
-                rec = json.loads(line)
-            except json.JSONDecodeError:
-                continue
-            if not isinstance(rec, dict):
-                continue
-            hits.append({
-                "probe": str(rec.get("probe") or rec.get("probe_classname") or "unknown"),
-                "detector": str(rec.get("detector") or rec.get("detector_name") or ""),
-                "prompt": str(rec.get("prompt") or rec.get("output") or "")[:280],
-            })
-    return hits, raw_files
+        try:
+            with hl.open("rb") as source:
+                for number, raw_line in enumerate(source, 1):
+                    try:
+                        line = raw_line.decode("utf-8")
+                    except UnicodeDecodeError:
+                        issues.append(HitlogIssue(hl.name, number, "invalid_utf8"))
+                        continue
+                    if not line.strip():
+                        continue
+                    try:
+                        rec = json.loads(line, parse_constant=_reject_json_constant)
+                    except (ValueError, RecursionError):
+                        issues.append(HitlogIssue(hl.name, number, "invalid_json"))
+                        continue
+                    if not isinstance(rec, dict):
+                        issues.append(HitlogIssue(hl.name, number, "non_object"))
+                        continue
+                    # Redact before truncation can turn a token into an unrecognized fragment.
+                    prompt = scrub(str(rec.get("prompt") or rec.get("output") or ""))
+                    hits.append({
+                        "probe": str(rec.get("probe") or rec.get("probe_classname") or "unknown"),
+                        "detector": str(rec.get("detector") or rec.get("detector_name") or ""),
+                        "prompt": prompt[:280],
+                    })
+        except OSError:
+            # Opening or iterating can fail after earlier records were parsed.
+            issues.append(HitlogIssue(hl.name, None, "read_error"))
+    return HitlogParseResult(hits, raw_files, issues)
+
+
+def report_text(value: object) -> str:
+    """Keep an untrusted report field literal in HTML-capable GFM renderers.
+
+    Redact before escaping, flatten line breaks, and escape one original
+    character at a time so generated HTML entities are never re-escaped.
+    Escaping URL punctuation also prevents GFM's automatic link detection.
+    """
+    text = " ".join(scrub(str(value)).splitlines())
+    escaped: list[str] = []
+    for char in text:
+        if 0xD800 <= ord(char) <= 0xDFFF:
+            # JSON can decode lone surrogates that UTF-8 cannot encode. Keep
+            # them visible as literal escape text instead of losing the report.
+            escaped.append(r"\\u" + f"{ord(char):04x}")
+        elif char in "&<>\"'":
+            escaped.append(html.escape(char))
+        elif char in string.punctuation:
+            escaped.append("\\" + char)
+        else:
+            escaped.append(char)
+    return "".join(escaped)
 
 
 def write_report(out_dir: Path, cfg: dict, ran: list[str], skipped: dict,
-                 hits: list[dict], raw_files: list[str]) -> Path:
+                 hits: list[dict], raw_files: list[str],
+                 failures: dict[str, str] | None = None,
+                 issues: list[HitlogIssue] | None = None) -> Path:
+    failures = failures or {}
+    issues = issues or []
     ts = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
     lines = [
         "# AI / LLM Red-Team Assessment Report",
         "",
-        f"**Target:** {cfg['name']} ({cfg['model']})",
+        f"**Target:** {report_text(cfg['name'])} ({report_text(cfg['model'])})",
         f"**Generated:** {ts}",
-        f"**Phases run:** {', '.join(ran) or 'none'}",
+        f"**Phases run:** {', '.join(report_text(phase) for phase in ran) or 'none'}",
+        f"**Execution failures:** {len(failures)}",
+        f"**Evidence parsing issues:** {len(issues)}",
         "",
         "> Skeleton auto-generated by the Talon AI Red-Team runner. A human tester "
         "must triage every item below: assign real severity, confirm reproduction, "
@@ -225,20 +306,38 @@ def write_report(out_dir: Path, cfg: dict, ran: list[str], skipped: dict,
         "",
     ]
     if hits:
-        lines += [f"garak recorded {len(hits)} hit(s). Raw hitlog: {', '.join(raw_files)}",
+        lines += [f"Parsed {len(hits)} untriaged hit(s) from garak hitlog(s). Raw hitlog: {', '.join(report_text(name) for name in raw_files)}",
                   "", "| Probe | Detector | Prompt/output (truncated) |", "|---|---|---|"]
         for h in hits:
-            prompt = h["prompt"].replace("|", "\\|").replace("\n", " ")
-            lines.append(f"| {h['probe']} | {h['detector']} | {prompt} |")
+            lines.append(
+                f"| {report_text(h['probe'])} | {report_text(h['detector'])} | "
+                f"{report_text(h['prompt'])} |"
+            )
     elif raw_files:
-        lines.append(f"garak produced hitlog file(s) ({', '.join(raw_files)}) but no "
-                     "hits were parsed. Open the raw hitlog to confirm before trusting a clean result.")
+        lines.append(f"garak produced hitlog file(s) ({', '.join(report_text(name) for name in raw_files)}) but no "
+                     "hits were parsed. This is inconclusive; review raw evidence and run completion.")
     else:
         lines.append("_No garak hitlog found. Confirm the run completed and probes executed "
-                     "(check the per-phase .log files) before treating this as a clean result._")
+                     "(check the per-phase .log files). This is inconclusive, not a clean result._")
+    lines += ["", "## Execution failures", ""]
+    if failures:
+        for phase, note in failures.items():
+            lines.append(f"- **{report_text(phase)}**: {report_text(note)}")
+        lines.append("\n_Requested automated work did not complete. Review logs and retry before interpreting results._")
+    else:
+        lines.append("_None recorded. Manual phases still require the work listed below._")
+    lines += ["", "## Evidence parsing issues", ""]
+    if issues:
+        for issue in issues:
+            location = f"line {issue.line_number}" if issue.line_number is not None else "file-level"
+            lines.append(f"- {report_text(issue.filename)} ({location}): "
+                         f"{PARSE_ISSUE_MESSAGES[issue.reason]}")
+        lines.append("\n_Evidence parsing is incomplete. Review the raw files before interpreting parsed hit counts._")
+    else:
+        lines.append("_None recorded. Missing or empty hitlogs remain inconclusive._")
     lines += ["", "## Phases needing manual work", ""]
     for phase, note in skipped.items():
-        lines.append(f"- **{phase}**: {note}")
+        lines.append(f"- **{report_text(phase)}**: {report_text(note)}")
     lines += [
         "",
         "## Next steps for the tester",
@@ -249,11 +348,11 @@ def write_report(out_dir: Path, cfg: dict, ran: list[str], skipped: dict,
         "",
     ]
     report_path = out_dir / "findings-report.md"
-    report_path.write_text("\n".join(lines), encoding="utf-8")
+    report_path.write_text(scrub("\n".join(lines)), encoding="utf-8")
     return report_path
 
 
-def main() -> None:
+def main() -> int:
     ap = argparse.ArgumentParser(description="Talon AI Red-Team runner")
     ap.add_argument("--config", required=True, type=Path, help="path to engagement config YAML")
     ap.add_argument("--out", type=Path, default=Path("engagements"), help="output base directory")
@@ -276,20 +375,19 @@ def main() -> None:
         if cfg["promptfoo_config"]:
             print(f"  promptfoo: {cfg['promptfoo_config']}")
         print("\n[dry-run] no probes executed.")
-        return
+        return 0
 
     stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
     base = args.out.resolve()
-    out_dir = base / f"{safe_slug(cfg['name'])}-{stamp}"
-    # Defense-in-depth: safe_slug already yields an inert single component, but
-    # confirm the resolved path stays under the base dir before creating it.
-    if base not in out_dir.resolve().parents:
-        fail("resolved output path escaped the output base directory")
-    out_dir.mkdir(parents=True, exist_ok=True)
+    base.mkdir(parents=True, exist_ok=True)
+    # Exclusive allocation prevents same-second runs or old evidence from sharing
+    # a directory. mkdtemp creates the child with owner-only POSIX permissions.
+    out_dir = Path(tempfile.mkdtemp(prefix=f"{safe_slug(cfg['name'])}-{stamp}-", dir=base))
     print(f"Output: {out_dir}")
 
     ran: list[str] = []
     skipped: dict[str, str] = {}
+    failures: dict[str, str] = {}
 
     for phase in cfg["phases"]:
         if phase in PHASE_GARAK_PROBES:
@@ -302,7 +400,7 @@ def main() -> None:
             if code == 0:
                 ran.append(phase)
             else:
-                skipped[phase] = f"garak exited {code} — see {phase}.log"
+                failures[phase] = f"garak exited {code}; see {phase}.log"
         else:
             skipped[phase] = PHASE_MANUAL[phase]
 
@@ -316,15 +414,22 @@ def main() -> None:
             if code == 0:
                 ran.append("promptfoo")
             else:
-                skipped["promptfoo"] = f"promptfoo exited {code} — see promptfoo.log"
+                failures["promptfoo"] = f"promptfoo exited {code}; see promptfoo.log"
         else:
-            skipped["promptfoo"] = f"config not found: {pf}"
+            failures["promptfoo"] = f"config not found: {pf}"
 
-    hits, raw_files = parse_garak_hits(out_dir)
-    report = write_report(out_dir, cfg, ran, skipped, hits, raw_files)
+    parsed = parse_garak_hits(out_dir)
+    report = write_report(out_dir, cfg, ran, skipped, parsed.hits, parsed.raw_files, failures, parsed.issues)
     print(f"\nReport skeleton: {report}")
-    print(f"Automated hits (untriaged): {len(hits)}")
+    print(f"Parsed hits (untriaged): {len(parsed.hits)}")
+    print(f"Execution failures: {len(failures)}")
+    print(f"Evidence parsing issues: {len(parsed.issues)}")
+    if parsed.issues:
+        print("Evidence parsing is incomplete; review the report and raw files.", file=sys.stderr)
+    if failures:
+        print("Requested automated work did not complete; review the report and logs.", file=sys.stderr)
+    return 1 if failures or parsed.issues else 0
 
 
 if __name__ == "__main__":
-    main()
+    sys.exit(main())

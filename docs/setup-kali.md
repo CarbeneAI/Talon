@@ -126,12 +126,20 @@ sudo ufw enable
 
 ## Verify Talon Connection
 
-Once SSH is configured, verify Claude Code can connect:
+SSH connectivity and MCP connectivity are separate checks. Talon does not bundle
+or validate an SSH MCP provider. First select and configure a reviewed provider
+using the [README registration instructions](../README.md#2-register-your-ssh-mcp-server).
+The example JSON requires a real provider command and arguments before use.
 
-1. Update `~/.claude/mcp.json` with your Kali IP and username
-2. Restart Claude Code
-3. Ask Claude: "Run `uname -a` on Kali and tell me the kernel version"
-4. If it responds with kernel info, Talon is working
+1. Register `kali-ssh` locally from the repository root using the provider's instructions
+2. Run `claude mcp get kali-ssh` and inspect `/mcp` in Claude Code
+3. Approve a reviewed project-scoped server if prompted
+4. Ask Claude: "Run `uname -a` on Kali and tell me the kernel version"
+5. Confirm the output came from the intended VM before testing an authorized target
+
+Claude Code uses `.mcp.json` for shared project configuration and `~/.claude.json`
+for local registration. See the [official MCP documentation](https://code.claude.com/docs/en/mcp).
+A successful plain SSH check does not establish that MCP is working.
 
 ## Troubleshooting
 
@@ -146,6 +154,7 @@ Once SSH is configured, verify Claude Code can connect:
 - Check authorized_keys permissions: `chmod 600 ~/.ssh/authorized_keys` on Kali
 
 **MCP server not connecting:**
-- Check `npx --version` on your workstation
-- Try running MCP server manually: `npx -y @anthropic-ai/mcp-server-ssh ssh://YOUR_USERNAME@YOUR_KALI_IP`
+- Confirm the configured command, arguments, runtime, and SSH settings match your reviewed provider
+- Replace all placeholders in the example JSON before registering it
+- Check `claude mcp get kali-ssh` and `/mcp` for connection or approval status
 - Review Claude Code logs for MCP connection errors

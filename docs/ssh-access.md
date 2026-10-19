@@ -2,12 +2,16 @@
 
 Options for connecting Claude Code to a pentesting VM that is not on your local network.
 
+The SSH endpoints below are illustrative addresses, not complete MCP configuration.
+Translate them into your reviewed provider's documented settings and verify its
+transport, proxy, and authentication support. Talon does not bundle or validate
+an SSH MCP provider. See the [registration instructions](../README.md#2-register-your-ssh-mcp-server).
+
 ## Option 1: Direct SSH (Same Network)
 
 The simplest setup — both machines on the same LAN:
 
-```bash
-# MCP config
+```text
 ssh://YOUR_USERNAME@YOUR_KALI_IP
 ```
 
@@ -47,7 +51,7 @@ Output:
 Forwarding  tcp://0.tcp.ngrok.io:12345 -> localhost:22
 ```
 
-Then update your MCP config:
+Illustrative SSH endpoint through the forwarded address:
 ```json
 "ssh://YOUR_USERNAME@0.tcp.ngrok.io:12345"
 ```
@@ -75,7 +79,7 @@ sudo apt install -y autossh
 autossh -M 0 -f -N -R 2222:localhost:22 YOUR_USER@YOUR_JUMP_SERVER.com
 ```
 
-### MCP config uses the jump server:
+### Illustrative SSH endpoint uses the jump server:
 
 ```json
 "ssh://YOUR_USERNAME@YOUR_JUMP_SERVER.com:2222"
@@ -116,7 +120,7 @@ tailscale ip -4
 # Returns something like: 100.x.x.x
 ```
 
-Update MCP config with Tailscale IP:
+Illustrative SSH endpoint using the Tailscale IP:
 ```json
 "ssh://YOUR_USERNAME@100.x.x.x"
 ```
@@ -158,7 +162,7 @@ cloudflared tunnel route dns kali-pentest kali.yourdomain.com
 cloudflared tunnel run kali-pentest
 ```
 
-MCP config:
+Illustrative SSH endpoint:
 ```json
 "ssh://YOUR_USERNAME@kali.yourdomain.com"
 ```
@@ -218,7 +222,7 @@ sudo systemctl enable wg-quick@wg0
 sudo systemctl start wg-quick@wg0
 ```
 
-MCP config uses WireGuard IP:
+Illustrative SSH endpoint using the WireGuard IP:
 ```json
 "ssh://YOUR_USERNAME@10.8.0.2"
 ```

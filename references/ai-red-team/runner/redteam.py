@@ -50,7 +50,8 @@ VALID_PHASES = list(PHASE_GARAK_PROBES) + list(PHASE_MANUAL)
 # refuse them rather than silently hit the wrong target.
 SUPPORTED_TYPES = {"openai"}
 ROADMAP_TYPES = {"openai_compatible", "rest"}
-# Redact anything that looks like a key or bearer token from tool output on disk.
+# Redact only the token patterns below from tool logs and generated reports.
+# Raw tool reports remain unchanged; this is not comprehensive secret detection.
 SECRET_RE = re.compile(r"(sk-[A-Za-z0-9_-]{16,}|Bearer\s+\S+|xoxb-\S+|gh[pousr]_[A-Za-z0-9]{20,})")
 SAFE_NAME = re.compile(r"[^A-Za-z0-9._-]+")
 

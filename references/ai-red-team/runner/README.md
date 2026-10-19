@@ -9,11 +9,15 @@ still reads the output and decides what actually matters.
 
 ## Install
 
+Run the Install, Configure, and Run commands from
+`references/ai-red-team/runner` within this repository.
+
 ```bash
 pip install -r requirements.txt
 # optional, per phase:
 npm install -g promptfoo      # phase 2 evals
-pip install pyrit modelscan   # phases 5 and 6
+# Manual phases 5 and 6: follow the selected tool's installation instructions.
+# The runner does not invoke PyRIT or modelscan.
 ```
 
 ## Configure
@@ -44,8 +48,8 @@ Output lands in `engagements/<target>-<timestamp>/`:
 | 2 prompt injection | garak `promptinject`, `latentinjection` |
 | 3 jailbreak | garak `dan`, `grandma` |
 | 4 disclosure | garak `leakreplay`, `xss` |
-| 5 tool / agent abuse | manual / PyRIT (guidance printed) |
-| 6 supply chain | modelscan against the model artifact |
+| 5 tool / agent abuse | manual (guidance printed; PyRIT is not invoked) |
+| 6 supply chain | manual (guidance printed for artifact review with modelscan/fickling) |
 
 **Target types:** only `openai` is wired end-to-end today. `openai_compatible`
 and `rest` need a garak generator option file built from the endpoint; that is
@@ -59,11 +63,14 @@ is a confirmed hit. If it reports zero hits, open the raw hitlog and per-phase
 ## Safety
 
 - Runs only when `authorized: true` is set in the config.
-- API keys are read from the environment, never from the config file, never
-  printed, never passed on a command line.
+- The configured API key is read from its named environment variable. The runner
+  does not pass it on a command line.
 - Subprocesses are invoked with argument lists, never a shell.
-- Tool logs and the generated findings report are scrubbed of key-shaped tokens.
-  Raw tool reports are preserved, so treat engagement output directories as sensitive.
+- Tool logs and the generated findings report redact a limited set of token
+  patterns: `sk-`, `Bearer`, `xoxb-`, and certain GitHub token prefixes. This is
+  not comprehensive secret detection. Review generated reports before sharing.
+  Raw tool reports are preserved and may contain secrets or other sensitive
+  evidence. Treat engagement output directories as sensitive.
 - **Treat engagement config files as trusted input.** `promptfoo_config` points
   at a file that promptfoo can use to execute arbitrary code (`exec:` providers,
   custom scripts). Do not run a config file you did not write or review.
@@ -71,5 +78,16 @@ is a confirmed hit. If it reports zero hits, open the raw hitlog and per-phase
 
 ## Tests
 
-From this directory, install `PyYAML` and run `python -B -m unittest discover -v`.
-The tests use synthetic evidence files and do not run scanners or call model APIs.
+From the repository root, run the same minimal checks as
+[the report-test CI job](../../../.github/workflows/runner-tests.yml):
+
+```bash
+cd references/ai-red-team/runner
+python -m pip install 'PyYAML==6.0.3'
+python -B -m unittest discover -v
+```
+
+Use Python 3.12 to match CI. These four offline regression tests cover findings
+report generation, token redaction, and preservation of raw evidence using
+synthetic files. They do not require scanner dependencies, invoke scanners, call
+model APIs, or verify a live service, SSH MCP integration, or all Talon features.

@@ -4,9 +4,18 @@ Talon is a penetration testing workflow toolkit that connects Claude Code to a K
 
 ## MCP Server
 
-The `kali-ssh` MCP server (configured in `mcp-config.example.json`) provides SSH access to your pentest VM. Copy the example config to `~/.claude/mcp.json` and update with your host/username before use.
+Talon does not bundle or validate an SSH MCP provider. `mcp-config.example.json`
+is a structure template with placeholder command and arguments, not a working
+connection. Select a reviewed provider and register it as `kali-ssh` using the
+[README setup instructions](README.md#quick-start). Claude Code uses `.mcp.json`
+for shared project configuration; local registration uses `~/.claude.json`.
+See the [official MCP documentation](https://code.claude.com/docs/en/mcp).
 
-All shell commands in this project are intended to run **on the remote Kali VM** via the MCP connection, not locally.
+Run repository development, offline tests, and Claude Code registration commands
+on the local workstation. Run target-facing security tools on the authorized
+Kali VM through a verified MCP connection. SSH setup and file-copy commands run
+where their instructions specify. Do not assume a provider or connection works
+from the presence of the example configuration.
 
 ## Methodology
 

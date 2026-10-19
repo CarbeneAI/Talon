@@ -1,5 +1,8 @@
 # Talon AI Red-Team Runner
 
+The runner preserves captured subprocess output when a command times out. See
+[timeout output handling](timeout-output.md) for the log behavior and limits.
+
 A thin orchestrator over open-source LLM red-team tooling. It runs the automated
 attack classes against an **authorized** target, collects the output, and writes
 a findings-report skeleton for a human tester to triage.

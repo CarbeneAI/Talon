@@ -173,8 +173,19 @@ def run_cmd(cmd: list[str], cwd: Path) -> tuple[int, str]:
         )
     except FileNotFoundError:
         return 127, f"command not found: {cmd[0]}"
-    except subprocess.TimeoutExpired:
-        return 124, f"timeout: {cmd[0]}"
+    except subprocess.TimeoutExpired as exc:
+        def timeout_text(value: str | bytes | None) -> str:
+            if value is None:
+                return ""
+            # TimeoutExpired may expose captured bytes even with text=True.
+            if isinstance(value, bytes):
+                return value.decode("utf-8", errors="replace")
+            return value
+
+        output = timeout_text(exc.stdout) + timeout_text(exc.stderr)
+        if output and not output.endswith(("\n", "\r")):
+            output += "\n"
+        return 124, output + f"timeout: {cmd[0]}"
     except OSError as exc:
         return 1, f"failed to run {cmd[0]}: {exc}"
     return proc.returncode, (proc.stdout or "") + (proc.stderr or "")

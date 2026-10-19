@@ -62,9 +62,14 @@ is a confirmed hit. If it reports zero hits, open the raw hitlog and per-phase
 - API keys are read from the environment, never from the config file, never
   printed, never passed on a command line.
 - Subprocesses are invoked with argument lists, never a shell.
-- Tool output is scrubbed of key-shaped tokens before it is written to a log,
-  but treat engagement output directories as sensitive regardless.
+- Tool logs and the generated findings report are scrubbed of key-shaped tokens.
+  Raw tool reports are preserved, so treat engagement output directories as sensitive.
 - **Treat engagement config files as trusted input.** `promptfoo_config` points
   at a file that promptfoo can use to execute arbitrary code (`exec:` providers,
   custom scripts). Do not run a config file you did not write or review.
 - For authorized testing only.
+
+## Tests
+
+From this directory, install `PyYAML` and run `python -B -m unittest discover -v`.
+The tests use synthetic evidence files and do not run scanners or call model APIs.

@@ -199,10 +199,12 @@ def parse_garak_hits(out_dir: Path) -> tuple[list[dict], list[str]]:
                 continue
             if not isinstance(rec, dict):
                 continue
+            # Redact before truncation can turn a token into an unrecognized fragment.
+            prompt = scrub(str(rec.get("prompt") or rec.get("output") or ""))
             hits.append({
                 "probe": str(rec.get("probe") or rec.get("probe_classname") or "unknown"),
                 "detector": str(rec.get("detector") or rec.get("detector_name") or ""),
-                "prompt": str(rec.get("prompt") or rec.get("output") or "")[:280],
+                "prompt": prompt[:280],
             })
     return hits, raw_files
 
@@ -249,7 +251,7 @@ def write_report(out_dir: Path, cfg: dict, ran: list[str], skipped: dict,
         "",
     ]
     report_path = out_dir / "findings-report.md"
-    report_path.write_text("\n".join(lines), encoding="utf-8")
+    report_path.write_text(scrub("\n".join(lines)), encoding="utf-8")
     return report_path
 
 

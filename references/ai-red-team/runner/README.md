@@ -41,9 +41,10 @@ Output lands in `engagements/<target>-<timestamp>/`:
 - `findings-report.md`: untriaged skeleton
 
 The runner writes its report before returning status 1 if a requested automated
-command fails, times out, or is unavailable, or a configured promptfoo file is
-missing. The report lists execution failures separately from intentional manual
-phases. Status 0 means no execution failure was recorded; it does not establish
+command fails, times out, or is unavailable, a configured promptfoo file is
+missing, or hitlog parsing records an issue. The report lists execution failures separately from intentional manual
+phases and evidence parsing issues. Status 0 means neither an execution failure
+nor a parsing issue was recorded; it does not establish
 a clean assessment or completion of manual work. Configuration errors also exit
 nonzero. A dry run writes no report and executes no probes.
 
@@ -79,9 +80,34 @@ unsupported options before creating output or invoking tools, including during
 a dry run. This guards configuration fields only. garak inherits the process
 environment; review provider environment settings separately before testing.
 
-**Reading results:** the runner parses garak's `.hitlog.jsonl`, where every line
-is a confirmed hit. If it reports zero hits, open the raw hitlog and per-phase
-`.log` files to confirm the run actually executed before you call it clean.
+## Evidence parsing
+
+The runner reads each `.hitlog.jsonl` as binary physical lines and decodes each
+nonblank record as UTF-8 JSON. Invalid UTF-8, malformed JSON, non-object JSON
+records, and file read failures are reported with a filename, a 1-based physical
+line number (or file-level location), and a fixed reason. Rejected payloads and
+exception messages are never retained in those diagnostics. Valid rows before
+or after a bad row, and other readable files, are preserved. Unicode line
+separators inside JSON strings do not split records; blank/whitespace-only lines
+and CRLF are supported. The raw bytes remain unchanged.
+
+The decoder rejects the nonstandard `NaN`, `Infinity`, and `-Infinity` literals
+and records unsupported nesting as a JSON decoding issue. It otherwise retains
+Python's JSON behavior, including last-value handling of duplicate object keys.
+This is not a full garak schema validator. Existing probe/detector alternate
+names and Python string rendering of structured prompt/output values are
+preserved. Official garak records include Conversation/Message objects, as shown
+by its [hitlog writer](https://github.com/NVIDIA/garak/blob/cc1215c5c301a69f115b0b2b7ef8e4172ae2e7fc/garak/evaluators/base.py#L123)
+and [data types](https://github.com/NVIDIA/garak/blob/cc1215c5c301a69f115b0b2b7ef8e4172ae2e7fc/garak/attempt.py#L21).
+This change does not introduce a structured-message adapter.
+
+The report says `Parsed N untriaged hit(s)` and lists evidence parsing issues
+separately from execution failures. Any parsing issue makes the runner return
+status 1 after writing the report. A missing, empty, or whitespace-only hitlog
+is explicitly inconclusive and does not count as a parsing failure: garak opens
+hitlogs in its detector-failure path, so absence alone does not prove execution
+failed. Zero parsed hits does not establish that the target is safe. Review the
+raw hitlog and per-phase logs, confirm the run completed, and triage evidence.
 
 ## Safety
 
@@ -99,7 +125,9 @@ is a confirmed hit. If it reports zero hits, open the raw hitlog and per-phase
   hitlog filenames, probe and detector names, prompt/output excerpts, and failure
   or manual notes. Supported token patterns are redacted before escaping; hitlog
   prompt/output text is still redacted before its 280-character truncation.
-  Field line breaks become spaces. HTML entities and Markdown punctuation are
+  Field line breaks become spaces. Unpaired surrogate code points decoded from
+  JSON are shown as literal `\uXXXX` text so one value cannot prevent UTF-8 report
+  writing. HTML entities and Markdown punctuation are
   escaped, including URL punctuation, so evidence does not create HTML, images,
   links, or report sections in the tested CommonMark/GFM renderer. The template
   keeps its intended headings and table. Raw evidence is not modified.
@@ -122,7 +150,8 @@ python -B -m unittest discover -v
 ```
 
 Use Python 3.12 to match CI. `requirements-test.txt` pins PyYAML 6.0.3,
-markdown-it-py 4.2.0, and linkify-it-py 2.2.0 as test dependencies. These 20 offline tests cover report redaction,
+markdown-it-py 4.2.0, and linkify-it-py 2.2.0 as test dependencies. These 30 offline tests cover physical-line hitlog parsing, fixed corruption/read
+diagnostics, official structured fields and legacy extraction, report redaction,
 preservation of raw evidence, production `main()` success and failure paths
 with mocked tool commands, fail-closed configuration with real validation,
 the actual Git ignore rules in temporary repositories, and report rendering

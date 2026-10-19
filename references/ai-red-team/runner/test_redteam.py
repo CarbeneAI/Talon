@@ -29,7 +29,8 @@ class FindingsReportTests(unittest.TestCase):
                 hitlog = self.out_dir / "example.hitlog.jsonl"
                 hitlog.write_text(raw, encoding="utf-8")
 
-                hits, raw_files = parse_garak_hits(self.out_dir)
+                parsed = parse_garak_hits(self.out_dir)
+                hits, raw_files = parsed.hits, parsed.raw_files
                 report = write_report(self.out_dir, self.cfg, ["example"], {}, hits, raw_files)
                 content = rendered_text(report.read_text(encoding="utf-8"))
 
@@ -57,7 +58,8 @@ class FindingsReportTests(unittest.TestCase):
         hitlog = self.out_dir / "example.hitlog.jsonl"
         hitlog.write_text(raw, encoding="utf-8")
 
-        hits, raw_files = parse_garak_hits(self.out_dir)
+        parsed = parse_garak_hits(self.out_dir)
+        hits, raw_files = parsed.hits, parsed.raw_files
         report = write_report(self.out_dir, self.cfg, [], {}, hits, raw_files)
         content = rendered_text(report.read_text(encoding="utf-8"))
 

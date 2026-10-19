@@ -25,9 +25,16 @@ scanning or attack capabilities.
 - Unsupported endpoint and key-variable config options fail before output is
   created or tools run. The supported `openai` type requires an empty endpoint
   and `OPENAI_API_KEY`; ambient provider environment behavior remains separate.
-- Twenty offline tests cover report redaction, truncation, ordinary formatting,
+- Hitlog parsing uses strict UTF-8 physical lines and diagnoses corrupt JSON,
+  non-object records, and read failures without exposing rejected payloads or
+  exception text. Valid rows and raw bytes are preserved, including structured
+  prompt/output values through the existing string rendering. Parsing issues
+  have a separate report count/section and cause status 1 after report writing.
+  Missing/empty hitlogs remain explicitly inconclusive without a parse failure.
+- Thirty offline tests cover report redaction, truncation, ordinary formatting,
   raw evidence preservation, mocked execution status, configuration rejection,
-  Git ignore rules, and inert evidence rendering. The
+  Git ignore rules, inert evidence rendering, physical JSONL boundaries, fixed
+  parsing diagnostics, read failures, and structured/legacy extraction. The
   [CI job](.github/workflows/runner-tests.yml) runs them with Python 3.12 and
   the pinned offline `requirements-test.txt` dependencies. This does not validate
   scanners, live services, SSH MCP, or every Markdown viewer.
@@ -40,8 +47,10 @@ scanning or attack capabilities.
 ### 1. Harden report redaction and evidence parsing
 
 Review the supported token patterns and report fields before changing them.
-Add deterministic synthetic fixtures for malformed or non-object JSONL records,
-alternate field names, empty hitlogs, absent hitlogs, and token boundaries.
+The baseline now covers malformed/non-object JSONL records, UTF-8 and physical
+line boundaries, read failures, alternate field names, structured values, empty
+and absent hitlogs, and token boundaries. Keep those contracts when refining
+redaction or evaluating a future version-specific structured-message adapter.
 
 Acceptance criteria:
 - Malformed or unsupported records produce the documented warning or error and

@@ -61,11 +61,12 @@ Ask Claude:
 ## Offline runner development
 
 From `references/ai-red-team/runner`, use Python 3.12, install the pinned
-`requirements-test.txt`, then run `python -B -m unittest discover -v`. The 20
+`requirements-test.txt`, then run `python -B -m unittest discover -v`. The 30
 checks use synthetic evidence, mocked tool commands, real configuration
 validation, temporary Git repositories, and a CommonMark/GFM renderer with raw
 HTML and autolinking enabled. They do not validate live tools or integrations. See the runner README for status semantics and storage limits:
-requested automated failures return nonzero after writing the report; manual
+requested automated failures or hitlog parsing issues return nonzero after
+writing the report; manual
 guidance alone does not fail. Directories named `engagements/` are ignored at
 any depth in the checkout. Keep custom evidence paths outside the
 repository or add explicit ignore rules before use.
@@ -77,6 +78,16 @@ require separate review; these checks do not establish endpoint authenticity.
 
 Keep every untrusted report field behind `report_text`. It redacts supported
 token patterns before escaping HTML and Markdown punctuation and flattening
-line breaks. Keep hitlog redaction before truncation; never modify raw evidence
+line breaks. Lone surrogate code points display as literal Unicode escape text,
+so a decoded JSON string cannot prevent UTF-8 report writing. Keep hitlog redaction before truncation; never modify raw evidence
 for display. Report structure is trusted template text, while names, evidence,
 filenames, and phase notes must remain literal in the rendered report.
+
+`parse_garak_hits` returns named `hits`, `raw_files`, and `issues` fields. Iterate
+binary physical lines with strict UTF-8; keep valid rows and raw bytes unchanged.
+Each parsing issue stores only filename, physical line (or file-level location),
+and a fixed reason code. Never include rejected payloads or exception text in a
+diagnostic. Preserve the current alternate names and string rendering of
+object-valued prompt/output fields; do not impose a string-only schema. Keep
+parsing issue counts separate from command failures. Missing/empty hitlogs are
+inconclusive warning-only cases, not proof of a clean target or a failed command.

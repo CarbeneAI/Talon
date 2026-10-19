@@ -25,7 +25,7 @@ class LiteralReportTests(unittest.TestCase):
         self.assertFalse(set(rendered.tags) & {"script", "img", "a", "iframe", "svg", "math", "style", "input"})
         self.assertFalse(any(name.lower().startswith("on") for name, _ in rendered.attributes))
         self.assertEqual(rendered.tags.count("h1"), 1)
-        self.assertEqual(rendered.tags.count("h2"), 4)
+        self.assertEqual(rendered.tags.count("h2"), 5)
         self.assertEqual(rendered.tags.count("table"), 1)
         self.assertEqual(rendered.tags.count("tr"), 2)
         self.assertEqual(rendered.tags.count("td"), 3)
@@ -71,7 +71,8 @@ class LiteralReportTests(unittest.TestCase):
                           "prompt": prefix + "sk-synthetic_key_0123456789"}) + "\n"
         hitlog = self.out / "synthetic.hitlog.jsonl"
         hitlog.write_text(raw)
-        hits, files = parse_garak_hits(self.out)
+        parsed = parse_garak_hits(self.out)
+        hits, files = parsed.hits, parsed.raw_files
         report = write_report(self.out, {"name": "target", "model": "model"}, [], {}, hits, files)
         source = report.read_text()
         rendered = RenderedReport(source)

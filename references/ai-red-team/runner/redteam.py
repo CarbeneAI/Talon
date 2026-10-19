@@ -27,6 +27,7 @@ import string
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
+from typing import NamedTuple
 
 try:
     import yaml
@@ -184,33 +185,72 @@ def run_cmd(cmd: list[str], cwd: Path) -> tuple[int, str]:
     return proc.returncode, (proc.stdout or "") + (proc.stderr or "")
 
 
-def parse_garak_hits(out_dir: Path) -> tuple[list[dict], list[str]]:
-    """Read garak's purpose-built hitlog(s). Every line in a hitlog is a
-    confirmed hit, so there is no pass/fail threshold to reimplement. Field
-    extraction is defensive: garak's schema varies by version, so we fall back
-    gracefully and always surface the raw file path for the tester."""
+class HitlogIssue(NamedTuple):
+    filename: str
+    line_number: int | None
+    reason: str
+
+
+class HitlogParseResult(NamedTuple):
+    hits: list[dict]
+    raw_files: list[str]
+    issues: list[HitlogIssue]
+
+
+PARSE_ISSUE_MESSAGES = {
+    "invalid_utf8": "physical line is not valid UTF-8",
+    "invalid_json": "physical line could not be decoded as standard JSON",
+    "non_object": "JSON record is not an object",
+    "read_error": "hitlog could not be read completely",
+}
+
+
+def _reject_json_constant(_value: str) -> None:
+    # Python otherwise accepts NaN/Infinity, which are not JSON constants.
+    raise ValueError
+
+
+def parse_garak_hits(out_dir: Path) -> HitlogParseResult:
+    """Parse physical UTF-8 JSONL records and report incomplete evidence.
+
+    Preserve existing extraction, including string rendering of structured
+    prompt/output values. Issues retain only location and fixed reason codes,
+    never rejected payloads or exception text. Raw files are read-only.
+    """
     hits: list[dict] = []
     raw_files: list[str] = []
+    issues: list[HitlogIssue] = []
     for hl in sorted(out_dir.glob("*.hitlog.jsonl")):
         raw_files.append(hl.name)
-        for line in hl.read_text(encoding="utf-8", errors="replace").splitlines():
-            line = line.strip()
-            if not line:
-                continue
-            try:
-                rec = json.loads(line)
-            except json.JSONDecodeError:
-                continue
-            if not isinstance(rec, dict):
-                continue
-            # Redact before truncation can turn a token into an unrecognized fragment.
-            prompt = scrub(str(rec.get("prompt") or rec.get("output") or ""))
-            hits.append({
-                "probe": str(rec.get("probe") or rec.get("probe_classname") or "unknown"),
-                "detector": str(rec.get("detector") or rec.get("detector_name") or ""),
-                "prompt": prompt[:280],
-            })
-    return hits, raw_files
+        try:
+            with hl.open("rb") as source:
+                for number, raw_line in enumerate(source, 1):
+                    try:
+                        line = raw_line.decode("utf-8")
+                    except UnicodeDecodeError:
+                        issues.append(HitlogIssue(hl.name, number, "invalid_utf8"))
+                        continue
+                    if not line.strip():
+                        continue
+                    try:
+                        rec = json.loads(line, parse_constant=_reject_json_constant)
+                    except (ValueError, RecursionError):
+                        issues.append(HitlogIssue(hl.name, number, "invalid_json"))
+                        continue
+                    if not isinstance(rec, dict):
+                        issues.append(HitlogIssue(hl.name, number, "non_object"))
+                        continue
+                    # Redact before truncation can turn a token into an unrecognized fragment.
+                    prompt = scrub(str(rec.get("prompt") or rec.get("output") or ""))
+                    hits.append({
+                        "probe": str(rec.get("probe") or rec.get("probe_classname") or "unknown"),
+                        "detector": str(rec.get("detector") or rec.get("detector_name") or ""),
+                        "prompt": prompt[:280],
+                    })
+        except OSError:
+            # Opening or iterating can fail after earlier records were parsed.
+            issues.append(HitlogIssue(hl.name, None, "read_error"))
+    return HitlogParseResult(hits, raw_files, issues)
 
 
 def report_text(value: object) -> str:
@@ -223,7 +263,11 @@ def report_text(value: object) -> str:
     text = " ".join(scrub(str(value)).splitlines())
     escaped: list[str] = []
     for char in text:
-        if char in "&<>\"'":
+        if 0xD800 <= ord(char) <= 0xDFFF:
+            # JSON can decode lone surrogates that UTF-8 cannot encode. Keep
+            # them visible as literal escape text instead of losing the report.
+            escaped.append(r"\\u" + f"{ord(char):04x}")
+        elif char in "&<>\"'":
             escaped.append(html.escape(char))
         elif char in string.punctuation:
             escaped.append("\\" + char)
@@ -234,8 +278,10 @@ def report_text(value: object) -> str:
 
 def write_report(out_dir: Path, cfg: dict, ran: list[str], skipped: dict,
                  hits: list[dict], raw_files: list[str],
-                 failures: dict[str, str] | None = None) -> Path:
+                 failures: dict[str, str] | None = None,
+                 issues: list[HitlogIssue] | None = None) -> Path:
     failures = failures or {}
+    issues = issues or []
     ts = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
     lines = [
         "# AI / LLM Red-Team Assessment Report",
@@ -244,6 +290,7 @@ def write_report(out_dir: Path, cfg: dict, ran: list[str], skipped: dict,
         f"**Generated:** {ts}",
         f"**Phases run:** {', '.join(report_text(phase) for phase in ran) or 'none'}",
         f"**Execution failures:** {len(failures)}",
+        f"**Evidence parsing issues:** {len(issues)}",
         "",
         "> Skeleton auto-generated by the Talon AI Red-Team runner. A human tester "
         "must triage every item below: assign real severity, confirm reproduction, "
@@ -253,7 +300,7 @@ def write_report(out_dir: Path, cfg: dict, ran: list[str], skipped: dict,
         "",
     ]
     if hits:
-        lines += [f"garak recorded {len(hits)} hit(s). Raw hitlog: {', '.join(report_text(name) for name in raw_files)}",
+        lines += [f"Parsed {len(hits)} untriaged hit(s) from garak hitlog(s). Raw hitlog: {', '.join(report_text(name) for name in raw_files)}",
                   "", "| Probe | Detector | Prompt/output (truncated) |", "|---|---|---|"]
         for h in hits:
             lines.append(
@@ -262,10 +309,10 @@ def write_report(out_dir: Path, cfg: dict, ran: list[str], skipped: dict,
             )
     elif raw_files:
         lines.append(f"garak produced hitlog file(s) ({', '.join(report_text(name) for name in raw_files)}) but no "
-                     "hits were parsed. Open the raw hitlog to confirm before trusting a clean result.")
+                     "hits were parsed. This is inconclusive; review raw evidence and run completion.")
     else:
         lines.append("_No garak hitlog found. Confirm the run completed and probes executed "
-                     "(check the per-phase .log files) before treating this as a clean result._")
+                     "(check the per-phase .log files). This is inconclusive, not a clean result._")
     lines += ["", "## Execution failures", ""]
     if failures:
         for phase, note in failures.items():
@@ -273,6 +320,15 @@ def write_report(out_dir: Path, cfg: dict, ran: list[str], skipped: dict,
         lines.append("\n_Requested automated work did not complete. Review logs and retry before interpreting results._")
     else:
         lines.append("_None recorded. Manual phases still require the work listed below._")
+    lines += ["", "## Evidence parsing issues", ""]
+    if issues:
+        for issue in issues:
+            location = f"line {issue.line_number}" if issue.line_number is not None else "file-level"
+            lines.append(f"- {report_text(issue.filename)} ({location}): "
+                         f"{PARSE_ISSUE_MESSAGES[issue.reason]}")
+        lines.append("\n_Evidence parsing is incomplete. Review the raw files before interpreting parsed hit counts._")
+    else:
+        lines.append("_None recorded. Missing or empty hitlogs remain inconclusive._")
     lines += ["", "## Phases needing manual work", ""]
     for phase, note in skipped.items():
         lines.append(f"- **{report_text(phase)}**: {report_text(note)}")
@@ -358,14 +414,17 @@ def main() -> int:
         else:
             failures["promptfoo"] = f"config not found: {pf}"
 
-    hits, raw_files = parse_garak_hits(out_dir)
-    report = write_report(out_dir, cfg, ran, skipped, hits, raw_files, failures)
+    parsed = parse_garak_hits(out_dir)
+    report = write_report(out_dir, cfg, ran, skipped, parsed.hits, parsed.raw_files, failures, parsed.issues)
     print(f"\nReport skeleton: {report}")
-    print(f"Automated hits (untriaged): {len(hits)}")
+    print(f"Parsed hits (untriaged): {len(parsed.hits)}")
     print(f"Execution failures: {len(failures)}")
+    print(f"Evidence parsing issues: {len(parsed.issues)}")
+    if parsed.issues:
+        print("Evidence parsing is incomplete; review the report and raw files.", file=sys.stderr)
     if failures:
         print("Requested automated work did not complete; review the report and logs.", file=sys.stderr)
-    return 1 if failures else 0
+    return 1 if failures or parsed.issues else 0
 
 
 if __name__ == "__main__":

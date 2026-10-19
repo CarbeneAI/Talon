@@ -10,15 +10,25 @@ still reads the output and decides what actually matters.
 ## Install
 
 Run the Install, Configure, and Run commands from
-`references/ai-red-team/runner` within this repository.
+`references/ai-red-team/runner` within this repository. The examples select an
+installed `python3.12` executable to match the offline CI interpreter. Create the
+virtual environment outside the checkout, then activate it so `garak` resolves
+from that environment when the runner invokes it.
 
 ```bash
-pip install -r requirements.txt
+TALON_RUNNER_VENV="$HOME/.venvs/talon-runner-py312"
+python3.12 -m venv "$TALON_RUNNER_VENV"
+. "$TALON_RUNNER_VENV/bin/activate"
+"$TALON_RUNNER_VENV/bin/python" -m pip install -r requirements.txt
 # optional, per phase:
 npm install -g promptfoo      # phase 2 evals
 # Manual phases 5 and 6: follow the selected tool's installation instructions.
 # The runner does not invoke PyRIT or modelscan.
 ```
+
+If you open another terminal, set `TALON_RUNNER_VENV` to the same path and
+activate it again before configuring or running the harness. Do not install
+runtime/scanner dependencies for the offline tests below.
 
 ## Configure
 
@@ -31,8 +41,8 @@ export OPENAI_API_KEY=sk-...   # garak reads the provider environment variable
 ## Run
 
 ```bash
-python redteam.py --config config.yaml --dry-run   # validate + show the plan
-python redteam.py --config config.yaml             # execute
+"$TALON_RUNNER_VENV/bin/python" redteam.py --config config.yaml --dry-run   # validate + show the plan
+"$TALON_RUNNER_VENV/bin/python" redteam.py --config config.yaml             # execute
 ```
 
 Output lands in `engagements/<target>-<timestamp>-<random>/`:
@@ -148,16 +158,23 @@ raw hitlog and per-phase logs, confirm the run completed, and triage evidence.
 
 ## Tests
 
-From the repository root, run the same minimal checks as
+From the repository root, create a separate Python 3.12 test environment outside
+the checkout and install only the pinned offline dependencies. No activation is
+needed because every command uses that environment's interpreter explicitly.
+These are the same checks and dependency set as
 [the report-test CI job](../../../.github/workflows/runner-tests.yml):
 
 ```bash
 cd references/ai-red-team/runner
-python -m pip install -r requirements-test.txt
-python -B -m unittest discover -v
+TALON_TEST_VENV="$HOME/.venvs/talon-tests-py312"
+python3.12 -m venv "$TALON_TEST_VENV"
+"$TALON_TEST_VENV/bin/python" -m pip install -r requirements-test.txt
+"$TALON_TEST_VENV/bin/python" -B -m unittest discover -v
 ```
 
-Use Python 3.12 to match CI. `requirements-test.txt` pins PyYAML 6.0.3,
+CI uses `actions/setup-python` to select Python 3.12 before its `python`
+commands. The local commands above select it explicitly instead of relying on
+the shell's `python` or `pip` aliases. `requirements-test.txt` pins PyYAML 6.0.3,
 markdown-it-py 4.2.0, and linkify-it-py 2.2.0 as test dependencies. These 33 offline tests cover physical-line hitlog parsing, fixed corruption/read
 diagnostics, official structured fields and legacy extraction, exclusive run
 directories and POSIX permissions, report redaction,

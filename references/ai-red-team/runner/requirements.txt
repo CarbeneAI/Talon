@@ -2,7 +2,8 @@
 pyyaml>=6.0
 garak>=0.9
 
-# Installed separately (heavier / optional per phase):
+# Installed separately (heavier / optional per phase). Python examples below
+# use the runner venv path established in README.md:
 #   promptfoo   -> npm install -g promptfoo         (phase 2 evals)
-#   pyrit       -> pip install pyrit                 (phase 5 orchestration)
-#   modelscan   -> pip install modelscan             (phase 6 supply chain)
+#   pyrit       -> "$TALON_RUNNER_VENV/bin/python" -m pip install pyrit                 (phase 5 orchestration)
+#   modelscan   -> "$TALON_RUNNER_VENV/bin/python" -m pip install modelscan             (phase 6 supply chain)

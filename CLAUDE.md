@@ -60,9 +60,19 @@ Ask Claude:
 
 ## Offline runner development
 
-From `references/ai-red-team/runner`, use Python 3.12, install the pinned
-`requirements-test.txt`, then run `python -B -m unittest discover -v`. The 33
-checks use synthetic evidence, mocked tool commands, real configuration
+From the repository root, use an installed `python3.12` executable to create a
+test-only virtual environment outside the checkout. Use its interpreter for both
+pip and tests; the shell's default `python` may select another version.
+
+```bash
+cd references/ai-red-team/runner
+TALON_TEST_VENV="$HOME/.venvs/talon-tests-py312"
+python3.12 -m venv "$TALON_TEST_VENV"
+"$TALON_TEST_VENV/bin/python" -m pip install -r requirements-test.txt
+"$TALON_TEST_VENV/bin/python" -B -m unittest discover -v
+```
+
+The 33 checks use synthetic evidence, mocked tool commands, real configuration
 validation, temporary Git repositories, and a CommonMark/GFM renderer with raw
 HTML and autolinking enabled. They do not validate live tools or integrations. See the runner README for status semantics and storage limits:
 requested automated failures or hitlog parsing issues return nonzero after

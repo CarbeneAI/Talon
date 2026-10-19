@@ -222,6 +222,9 @@ The templates use Obsidian callouts, mermaid diagrams, and checkbox lists for ef
 
 ## Contributing
 
+See the [proposed roadmap](ROADMAP.md) for reliability and setup improvements
+for maintainer discussion. It is not an adopted commitment or timeline.
+
 Pull requests welcome. Focus areas:
 
 - Additional service enumeration guides

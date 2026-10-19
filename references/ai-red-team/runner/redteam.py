@@ -21,6 +21,8 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import signal
+import subprocess
 import re
 import sys
 from datetime import datetime, timezone
@@ -53,6 +55,10 @@ ROADMAP_TYPES = {"openai_compatible", "rest"}
 # Redact anything that looks like a key or bearer token from tool output on disk.
 SECRET_RE = re.compile(r"(sk-[A-Za-z0-9_-]{16,}|Bearer\s+\S+|xoxb-\S+|gh[pousr]_[A-Za-z0-9]{20,})")
 SAFE_NAME = re.compile(r"[^A-Za-z0-9._-]+")
+_COMMAND_TIMEOUT_SECONDS = 3600
+_TIMEOUT_CLEANUP_SECONDS = 1.0
+_TIMEOUT_REAP_SECONDS = 0.5
+_TIMEOUT_CLEANUP_WARNING = "timeout cleanup incomplete: child processes or output pipes may remain"
 
 
 def fail(msg: str) -> None:
@@ -165,19 +171,160 @@ def build_garak_cmd(cfg: dict, probes: list[str], report_prefix: Path) -> list[s
     ]
 
 
-def run_cmd(cmd: list[str], cwd: Path) -> tuple[int, str]:
-    import subprocess
+def _timeout_text(value: str | bytes | None) -> str:
+    if value is None:
+        return ""
+    # TimeoutExpired may expose captured bytes even when text mode was requested.
+    if isinstance(value, bytes):
+        return value.decode("utf-8", errors="replace")
+    return value
+
+
+def _kill_immediate_child(proc: subprocess.Popen) -> bool:
     try:
-        proc = subprocess.run(
-            cmd, cwd=str(cwd), capture_output=True, text=True, timeout=3600, check=False
-        )
+        if proc.poll() is None:
+            proc.kill()
+    except ProcessLookupError:
+        pass
+    except OSError:
+        return False
+    return True
+
+
+def _signal_owned_work(proc: subprocess.Popen) -> bool:
+    """Stop the POSIX command group, or the immediate child elsewhere."""
+    incomplete = os.name != "posix"
+    if os.name == "posix":
+        try:
+            # The process is the group leader of a session created for this command.
+            # Signal by group even if the leader exited while descendants keep pipes open.
+            os.killpg(proc.pid, signal.SIGKILL)
+        except ProcessLookupError:
+            pass
+        except OSError:
+            incomplete = True
+            if not _kill_immediate_child(proc):
+                incomplete = True
+    else:
+        # Without POSIX process groups, only the direct child is owned here.
+        if not _kill_immediate_child(proc):
+            incomplete = True
+    return incomplete
+
+
+def _close_process_pipes(proc: subprocess.Popen) -> bool:
+    incomplete = False
+    for stream in (proc.stdout, proc.stderr):
+        if stream is None:
+            continue
+        try:
+            stream.close()
+        except OSError:
+            incomplete = True
+    return incomplete
+
+
+def _cleanup_timed_out_process(
+    proc: subprocess.Popen,
+    previous_stdout: str | bytes | None,
+    previous_stderr: str | bytes | None,
+) -> tuple[str | bytes | None, str | bytes | None, bool]:
+    """Kill owned work, drain for a bounded interval, then close and reap."""
+    incomplete = _signal_owned_work(proc)
+    latest_stdout = previous_stdout
+    latest_stderr = previous_stderr
+    try:
+        stdout, stderr = proc.communicate(timeout=_TIMEOUT_CLEANUP_SECONDS)
+        if stdout is not None:
+            latest_stdout = stdout
+        if stderr is not None:
+            latest_stderr = stderr
+    except subprocess.TimeoutExpired as exc:
+        # A later communicate snapshot is cumulative. Keep it once, per stream.
+        if exc.output is not None:
+            latest_stdout = exc.output
+        if exc.stderr is not None:
+            latest_stderr = exc.stderr
+        incomplete = True
+    except Exception:
+        incomplete = True
+
+    if incomplete:
+        incomplete = _close_process_pipes(proc) or incomplete
+        if not _kill_immediate_child(proc):
+            incomplete = True
+        try:
+            proc.wait(timeout=_TIMEOUT_REAP_SECONDS)
+        except subprocess.TimeoutExpired:
+            incomplete = True
+        except Exception:
+            incomplete = True
+    return latest_stdout, latest_stderr, incomplete
+
+
+def _cleanup_after_interruption(proc: subprocess.Popen) -> None:
+    """Best-effort bounded cleanup that never replaces the original exception."""
+    try:
+        _signal_owned_work(proc)
+    except BaseException:
+        pass
+    try:
+        proc.communicate(timeout=_TIMEOUT_CLEANUP_SECONDS)
+        return
+    except BaseException:
+        pass
+    try:
+        _close_process_pipes(proc)
+    except BaseException:
+        pass
+    try:
+        _kill_immediate_child(proc)
+    except BaseException:
+        pass
+    try:
+        proc.wait(timeout=_TIMEOUT_REAP_SECONDS)
+    except BaseException:
+        pass
+
+
+def run_cmd(cmd: list[str], cwd: Path) -> tuple[int, str]:
+    kwargs = {
+        "cwd": str(cwd),
+        "stdout": subprocess.PIPE,
+        "stderr": subprocess.PIPE,
+        "text": True,
+    }
+    if os.name == "posix":
+        kwargs["start_new_session"] = True
+    try:
+        proc = subprocess.Popen(cmd, **kwargs)
     except FileNotFoundError:
         return 127, f"command not found: {cmd[0]}"
-    except subprocess.TimeoutExpired:
-        return 124, f"timeout: {cmd[0]}"
     except OSError as exc:
         return 1, f"failed to run {cmd[0]}: {exc}"
-    return proc.returncode, (proc.stdout or "") + (proc.stderr or "")
+
+    try:
+        stdout, stderr = proc.communicate(timeout=_COMMAND_TIMEOUT_SECONDS)
+    except subprocess.TimeoutExpired as exc:
+        try:
+            stdout, stderr, incomplete = _cleanup_timed_out_process(
+                proc, exc.output, exc.stderr
+            )
+        except BaseException:
+            # An interrupt during timeout cleanup still belongs to the caller.
+            _cleanup_after_interruption(proc)
+            raise
+        output = _timeout_text(stdout) + _timeout_text(stderr)
+        if output and not output.endswith(("\n", "\r")):
+            output += "\n"
+        output += f"timeout: {cmd[0]}"
+        if incomplete:
+            output += f"\n{_TIMEOUT_CLEANUP_WARNING}"
+        return 124, output
+    except BaseException:
+        _cleanup_after_interruption(proc)
+        raise
+    return proc.returncode, _timeout_text(stdout) + _timeout_text(stderr)
 
 
 def parse_garak_hits(out_dir: Path) -> tuple[list[dict], list[str]]:

@@ -61,7 +61,7 @@ Ask Claude:
 ## Offline runner development
 
 From `references/ai-red-team/runner`, use Python 3.12, install the pinned
-`requirements-test.txt`, then run `python -B -m unittest discover -v`. The 30
+`requirements-test.txt`, then run `python -B -m unittest discover -v`. The 33
 checks use synthetic evidence, mocked tool commands, real configuration
 validation, temporary Git repositories, and a CommonMark/GFM renderer with raw
 HTML and autolinking enabled. They do not validate live tools or integrations. See the runner README for status semantics and storage limits:
@@ -91,3 +91,10 @@ diagnostic. Preserve the current alternate names and string rendering of
 object-valued prompt/output fields; do not impose a string-only schema. Keep
 parsing issue counts separate from command failures. Missing/empty hitlogs are
 inconclusive warning-only cases, not proof of a clean target or a failed command.
+
+Allocate each execution with exclusive `tempfile.mkdtemp` beneath the resolved
+output base, retaining the safe target/timestamp prefix. Never reuse an existing
+engagement folder: it can mix evidence from separate runs. Preserve owner-only
+POSIX child permissions and do not chmod an existing base. Keep dry runs and
+invalid configuration free of output effects. Parent directories must be trusted;
+these fixtures do not establish hostile-parent or Windows ACL guarantees.

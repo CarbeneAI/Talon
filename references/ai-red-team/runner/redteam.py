@@ -25,6 +25,7 @@ import os
 import re
 import string
 import sys
+import tempfile
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import NamedTuple
@@ -373,12 +374,10 @@ def main() -> int:
 
     stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
     base = args.out.resolve()
-    out_dir = base / f"{safe_slug(cfg['name'])}-{stamp}"
-    # Defense-in-depth: safe_slug already yields an inert single component, but
-    # confirm the resolved path stays under the base dir before creating it.
-    if base not in out_dir.resolve().parents:
-        fail("resolved output path escaped the output base directory")
-    out_dir.mkdir(parents=True, exist_ok=True)
+    base.mkdir(parents=True, exist_ok=True)
+    # Exclusive allocation prevents same-second runs or old evidence from sharing
+    # a directory. mkdtemp creates the child with owner-only POSIX permissions.
+    out_dir = Path(tempfile.mkdtemp(prefix=f"{safe_slug(cfg['name'])}-{stamp}-", dir=base))
     print(f"Output: {out_dir}")
 
     ran: list[str] = []

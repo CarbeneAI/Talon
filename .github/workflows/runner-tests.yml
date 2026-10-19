@@ -20,6 +20,6 @@ jobs:
           python-version: '3.12'
       - name: Install pinned offline test dependencies
         run: python -m pip install -r references/ai-red-team/runner/requirements-test.txt
-      - name: Test 30 offline parsing, rendering, configuration, and command-status cases
+      - name: Test 33 offline parsing, rendering, configuration, and command-status cases
         working-directory: references/ai-red-team/runner
         run: python -B -m unittest discover -v

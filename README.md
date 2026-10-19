@@ -224,7 +224,7 @@ The templates use Obsidian callouts, mermaid diagrams, and checkbox lists for ef
 ## Offline runner checks
 
 The [AI runner instructions](references/ai-red-team/runner/README.md#tests)
-describe 30 offline checks for report handling, mocked command status, supported
+describe 33 offline checks for report handling, mocked command status, supported
 configuration validation, honest hitlog parsing, inert report evidence rendering,
 and ignore rules. Run them on your workstation; they do
 not validate scanners, a live target, or an SSH MCP provider.

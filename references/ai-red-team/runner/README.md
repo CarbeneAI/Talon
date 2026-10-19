@@ -35,10 +35,18 @@ python redteam.py --config config.yaml --dry-run   # validate + show the plan
 python redteam.py --config config.yaml             # execute
 ```
 
-Output lands in `engagements/<target>-<timestamp>/`:
+Output lands in `engagements/<target>-<timestamp>-<random>/`:
 - per-phase logs
 - raw garak JSONL reports
 - `findings-report.md`: untriaged skeleton
+
+Each execution exclusively creates a new output directory, including runs with
+identical target names and timestamps. It does not reuse an old timestamp
+folder. The new child has owner-only POSIX permissions (`0700`, possibly further
+restricted by the process umask); existing output-base permissions are unchanged.
+Choose a trusted output parent. These checks do not address hostile parent-directory
+replacement or establish Windows ACL behavior. Dry runs and invalid configuration
+do not create output.
 
 The runner writes its report before returning status 1 if a requested automated
 command fails, times out, or is unavailable, a configured promptfoo file is
@@ -150,8 +158,9 @@ python -B -m unittest discover -v
 ```
 
 Use Python 3.12 to match CI. `requirements-test.txt` pins PyYAML 6.0.3,
-markdown-it-py 4.2.0, and linkify-it-py 2.2.0 as test dependencies. These 30 offline tests cover physical-line hitlog parsing, fixed corruption/read
-diagnostics, official structured fields and legacy extraction, report redaction,
+markdown-it-py 4.2.0, and linkify-it-py 2.2.0 as test dependencies. These 33 offline tests cover physical-line hitlog parsing, fixed corruption/read
+diagnostics, official structured fields and legacy extraction, exclusive run
+directories and POSIX permissions, report redaction,
 preservation of raw evidence, production `main()` success and failure paths
 with mocked tool commands, fail-closed configuration with real validation,
 the actual Git ignore rules in temporary repositories, and report rendering

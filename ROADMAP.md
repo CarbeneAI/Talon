@@ -31,7 +31,12 @@ scanning or attack capabilities.
   prompt/output values through the existing string rendering. Parsing issues
   have a separate report count/section and cause status 1 after report writing.
   Missing/empty hitlogs remain explicitly inconclusive without a parse failure.
-- Thirty offline tests cover report redaction, truncation, ordinary formatting,
+- Each execution exclusively allocates a new random-suffixed output directory,
+  preventing same-second/stale-directory evidence mixing. New children have
+  owner-only POSIX permissions; existing base permissions are unchanged. Fixed
+  clocks and a permissive-umask fixture cover this boundary. Hostile parent
+  replacement and Windows ACL behavior are not validated.
+- Thirty-three offline tests cover report redaction, truncation, ordinary formatting,
   raw evidence preservation, mocked execution status, configuration rejection,
   Git ignore rules, inert evidence rendering, physical JSONL boundaries, fixed
   parsing diagnostics, read failures, and structured/legacy extraction. The

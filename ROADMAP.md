@@ -36,7 +36,11 @@ scanning or attack capabilities.
   owner-only POSIX permissions; existing base permissions are unchanged. Fixed
   clocks and a permissive-umask fixture cover this boundary. Hostile parent
   replacement and Windows ACL behavior are not validated.
-- Thirty-three offline tests cover report redaction, truncation, ordinary formatting,
+- Garak is pinned to `0.17.1`; commands use `--target_type`, `--target_name`
+  and `--spec`, with explicit `web_injection.MarkdownXSS` and
+  `web_injection.TaskXSS` selectors. Offline command fixtures and local list-only
+  checks cover the selected names; no provider execution was validated.
+- Offline tests cover report redaction, truncation, ordinary formatting,
   raw evidence preservation, mocked execution status, configuration rejection,
   Git ignore rules, inert evidence rendering, physical JSONL boundaries, fixed
   parsing diagnostics, read failures, and structured/legacy extraction. The

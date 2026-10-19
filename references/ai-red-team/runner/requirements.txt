@@ -1,6 +1,7 @@
 # Talon AI Red-Team runner dependencies.
 pyyaml>=6.0
-garak>=0.9
+# Keep the CLI and probe selectors aligned with test_garak_cli.py.
+garak==0.17.1
 
 # Installed separately (heavier / optional per phase). Python examples below
 # use the runner venv path established in README.md:

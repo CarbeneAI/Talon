@@ -35,11 +35,16 @@ try:
 except ImportError:
     sys.exit("Missing dependency: pyyaml. Install with: pip install -r requirements.txt")
 
-# garak probe suites per phase. Kept conservative and well-known.
+# Garak 0.17.1 probe selectors per phase. Keep selections explicit and covered
+# by test_garak_cli.py so phase names map to the pinned CLI selectors.
 PHASE_GARAK_PROBES = {
     "2_prompt_injection": ["promptinject", "latentinjection"],
     "3_jailbreak": ["dan", "grandma"],
-    "4_disclosure": ["leakreplay", "xss"],
+    "4_disclosure": [
+        "leakreplay",
+        "web_injection.MarkdownXSS",
+        "web_injection.TaskXSS",
+    ],
 }
 # Phases handled by other means (documented, not auto-run here).
 PHASE_MANUAL = {
@@ -164,9 +169,9 @@ def build_garak_cmd(cfg: dict, probes: list[str], report_prefix: Path) -> list[s
     # the provider's own env var (e.g. OPENAI_API_KEY).
     return [
         "garak",
-        "--model_type", "openai",
-        "--model_name", cfg["model"],
-        "--probes", ",".join(probes),
+        "--target_type", "openai",
+        "--target_name", cfg["model"],
+        "--spec", ",".join(f"probes.{probe}" for probe in probes),
         "--report_prefix", str(report_prefix),
     ]
 

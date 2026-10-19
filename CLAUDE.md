@@ -72,7 +72,7 @@ python3.12 -m venv "$TALON_TEST_VENV"
 "$TALON_TEST_VENV/bin/python" -B -m unittest discover -v
 ```
 
-The 33 checks use synthetic evidence, mocked tool commands, real configuration
+These checks use synthetic evidence, mocked tool commands, real configuration
 validation, temporary Git repositories, and a CommonMark/GFM renderer with raw
 HTML and autolinking enabled. They do not validate live tools or integrations. See the runner README for status semantics and storage limits:
 requested automated failures or hitlog parsing issues return nonzero after

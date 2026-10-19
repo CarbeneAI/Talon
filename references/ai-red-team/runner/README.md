@@ -15,6 +15,9 @@ installed `python3.12` executable to match the offline CI interpreter. Create th
 virtual environment outside the checkout, then activate it so `garak` resolves
 from that environment when the runner invokes it.
 
+Garak `0.17.1` declares Python `>=3.11`; Talon's CI and the offline CLI
+verification use Python 3.12.
+
 ```bash
 TALON_RUNNER_VENV="$HOME/.venvs/talon-runner-py312"
 python3.12 -m venv "$TALON_RUNNER_VENV"
@@ -29,6 +32,13 @@ npm install -g promptfoo      # phase 2 evals
 If you open another terminal, set `TALON_RUNNER_VENV` to the same path and
 activate it again before configuring or running the harness. Do not install
 runtime/scanner dependencies for the offline tests below.
+
+The runner pins Garak to `0.17.1`. The lightweight unit tests check the runner's
+CLI arguments and phase selectors without installing Garak. They run on
+Ubuntu and macOS with Python 3.12. Installing Garak also installs its
+model-scanning dependencies. The plugin names below were verified against
+`0.17.1` using list-only mode on macOS with Python 3.12; that check does not
+contact a provider or execute probes.
 
 ## Configure
 
@@ -80,16 +90,31 @@ reports before sharing, and remove local evidence when that agreement requires.
 | Phase | How it runs |
 |-------|-------------|
 | 1 recon / fingerprinting | manual (guidance printed) |
-| 2 prompt injection | garak `promptinject`, `latentinjection` |
-| 3 jailbreak | garak `dan`, `grandma` |
-| 4 disclosure | garak `leakreplay`, `xss` |
+| 2 prompt injection | Garak `probes.promptinject`, `probes.latentinjection` |
+| 3 jailbreak | Garak `probes.dan`, `probes.grandma` |
+| 4 disclosure | Garak `probes.leakreplay`, `probes.web_injection.MarkdownXSS`, and `probes.web_injection.TaskXSS` |
 | 5 tool / agent abuse | manual (guidance printed; PyRIT is not invoked) |
 | 6 supply chain | manual (guidance printed for artifact review with modelscan/fickling) |
 
-**Target types:** only `openai` is wired end-to-end today. `openai_compatible`
-and `rest` need a garak generator option file built from the endpoint; that is
-on the roadmap, and the runner refuses those types until it lands rather than
-hit the wrong target silently.
+To verify the installed plugin names without running probes, use Garak's
+list-only mode, for example:
+
+```bash
+garak --list_probes --spec probes.leakreplay,probes.web_injection.MarkdownXSS,probes.web_injection.TaskXSS
+```
+
+After creating the separate environment described in [Tests](#tests), run the
+lightweight command-construction tests from this directory with:
+
+```bash
+"$TALON_TEST_VENV/bin/python" -B -m unittest test_garak_cli -v
+```
+
+**Target types:** the runner currently constructs Garak commands only for
+`openai` targets. Provider execution was not part of the recorded CLI
+verification. `openai_compatible` and `rest` need a Garak generator option file
+built from the endpoint; the runner refuses those types until that support is
+implemented rather than hitting the wrong target silently.
 
 For `openai`, leave `target.endpoint` empty and use
 `target.api_key_env: OPENAI_API_KEY`. The garak command does not map custom key
@@ -175,7 +200,7 @@ python3.12 -m venv "$TALON_TEST_VENV"
 CI uses `actions/setup-python` to select Python 3.12 before its `python`
 commands. The local commands above select it explicitly instead of relying on
 the shell's `python` or `pip` aliases. `requirements-test.txt` pins PyYAML 6.0.3,
-markdown-it-py 4.2.0, and linkify-it-py 2.2.0 as test dependencies. These 33 offline tests cover physical-line hitlog parsing, fixed corruption/read
+markdown-it-py 4.2.0, and linkify-it-py 2.2.0 as test dependencies. The offline tests cover physical-line hitlog parsing, fixed corruption/read
 diagnostics, official structured fields and legacy extraction, exclusive run
 directories and POSIX permissions, report redaction,
 preservation of raw evidence, production `main()` success and failure paths

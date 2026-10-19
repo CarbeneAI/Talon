@@ -6,6 +6,7 @@ from tempfile import TemporaryDirectory
 import unittest
 
 from redteam import parse_garak_hits, write_report
+from report_test_support import rendered_text
 
 
 class FindingsReportTests(unittest.TestCase):
@@ -30,7 +31,7 @@ class FindingsReportTests(unittest.TestCase):
 
                 hits, raw_files = parse_garak_hits(self.out_dir)
                 report = write_report(self.out_dir, self.cfg, ["example"], {}, hits, raw_files)
-                content = report.read_text(encoding="utf-8")
+                content = rendered_text(report.read_text(encoding="utf-8"))
 
                 self.assertNotIn(token, content)
                 self.assertIn("Observed [REDACTED]", content)
@@ -43,11 +44,11 @@ class FindingsReportTests(unittest.TestCase):
         report = write_report(
             self.out_dir, cfg, [], {"example": f"Tool returned {note_token}"}, [], []
         )
-        content = report.read_text(encoding="utf-8")
+        content = rendered_text(report.read_text(encoding="utf-8"))
 
         self.assertNotIn(target_token, content)
         self.assertNotIn(note_token, content)
-        self.assertIn("**Target:** [REDACTED] (example-model)", content)
+        self.assertIn("Target: [REDACTED] (example-model)", content)
         self.assertIn("Tool returned [REDACTED]", content)
 
     def test_report_redacts_before_truncating_hitlog_evidence(self):
@@ -58,7 +59,7 @@ class FindingsReportTests(unittest.TestCase):
 
         hits, raw_files = parse_garak_hits(self.out_dir)
         report = write_report(self.out_dir, self.cfg, [], {}, hits, raw_files)
-        content = report.read_text(encoding="utf-8")
+        content = rendered_text(report.read_text(encoding="utf-8"))
 
         self.assertIn(prefix + "[REDACTED]", content)
         self.assertNotIn("sk-synthetic", content)
@@ -74,13 +75,13 @@ class FindingsReportTests(unittest.TestCase):
             hits,
             ["example.hitlog.jsonl"],
         )
-        content = report.read_text(encoding="utf-8")
+        content = rendered_text(report.read_text(encoding="utf-8"))
 
-        self.assertIn("**Target:** example-target (example-model)", content)
-        self.assertIn("**Phases run:** example-phase", content)
-        self.assertIn("| example-probe | example-detector | A \\| B C |", content)
+        self.assertIn("Target: example-target (example-model)", content)
+        self.assertIn("Phases run: example-phase", content)
+        self.assertIn("A | B C", content)
         self.assertIn("Raw hitlog: example.hitlog.jsonl", content)
-        self.assertIn("- **manual-phase**: Review the evidence", content)
+        self.assertIn("manual-phase: Review the evidence", content)
 
 
 if __name__ == "__main__":

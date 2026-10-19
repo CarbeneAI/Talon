@@ -60,10 +60,11 @@ Ask Claude:
 
 ## Offline runner development
 
-From `references/ai-red-team/runner`, use Python 3.12 with PyYAML 6.0.3 and run
-`python -B -m unittest discover -v`. The 16 checks use synthetic evidence, mocked
-tool commands, real configuration validation, and temporary Git repositories. They do not validate live tools
-or integrations. See the runner README for status semantics and storage limits:
+From `references/ai-red-team/runner`, use Python 3.12, install the pinned
+`requirements-test.txt`, then run `python -B -m unittest discover -v`. The 20
+checks use synthetic evidence, mocked tool commands, real configuration
+validation, temporary Git repositories, and a CommonMark/GFM renderer with raw
+HTML and autolinking enabled. They do not validate live tools or integrations. See the runner README for status semantics and storage limits:
 requested automated failures return nonzero after writing the report; manual
 guidance alone does not fail. Directories named `engagements/` are ignored at
 any depth in the checkout. Keep custom evidence paths outside the
@@ -73,3 +74,9 @@ For the supported `openai` runner target, leave `target.endpoint` empty and use
 `target.api_key_env: OPENAI_API_KEY`. Unsupported values fail before creating
 output or invoking tools. Provider environment settings remain inherited and
 require separate review; these checks do not establish endpoint authenticity.
+
+Keep every untrusted report field behind `report_text`. It redacts supported
+token patterns before escaping HTML and Markdown punctuation and flattening
+line breaks. Keep hitlog redaction before truncation; never modify raw evidence
+for display. Report structure is trusted template text, while names, evidence,
+filenames, and phase notes must remain literal in the rendered report.

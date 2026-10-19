@@ -11,6 +11,10 @@ scanning or attack capabilities.
   including metadata and phase notes, and scrubs hitlog text before truncation.
   Raw evidence remains unchanged and sensitive. Redaction is not comprehensive
   secret detection.
+- All interpolated report fields are escaped as literal text, including URL
+  punctuation to prevent autolinks. Field line breaks become spaces; the
+  template keeps its headings and table. Real GFM rendering fixtures with HTML
+  and autolinking enabled cover metadata, evidence, filenames, and phase notes.
 - Requested automated command failures, missing tools, and missing configured
   promptfoo files are reported separately from manual guidance. The report is
   preserved before the runner returns status 1; status 0 is not a clean assessment.
@@ -21,11 +25,12 @@ scanning or attack capabilities.
 - Unsupported endpoint and key-variable config options fail before output is
   created or tools run. The supported `openai` type requires an empty endpoint
   and `OPENAI_API_KEY`; ambient provider environment behavior remains separate.
-- Sixteen offline tests cover report redaction, truncation, ordinary formatting,
+- Twenty offline tests cover report redaction, truncation, ordinary formatting,
   raw evidence preservation, mocked execution status, configuration rejection,
-  and Git ignore rules. The
+  Git ignore rules, and inert evidence rendering. The
   [CI job](.github/workflows/runner-tests.yml) runs them with Python 3.12 and
-  PyYAML 6.0.3. This does not validate scanners, live services, or SSH MCP.
+  the pinned offline `requirements-test.txt` dependencies. This does not validate
+  scanners, live services, SSH MCP, or every Markdown viewer.
 - Setup documentation identifies the SSH MCP example as a provider-dependent
   template. No default provider is selected or validated. Runner phases 1, 5,
   and 6 print manual guidance rather than execute those phases.

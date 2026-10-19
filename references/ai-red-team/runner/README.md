@@ -95,6 +95,16 @@ is a confirmed hit. If it reports zero hits, open the raw hitlog and per-phase
   not comprehensive secret detection. Review generated reports before sharing.
   Raw tool reports are preserved and may contain secrets or other sensitive
   evidence. Treat engagement output directories as sensitive.
+- Interpolated report fields are literal text: target and model names, phases,
+  hitlog filenames, probe and detector names, prompt/output excerpts, and failure
+  or manual notes. Supported token patterns are redacted before escaping; hitlog
+  prompt/output text is still redacted before its 280-character truncation.
+  Field line breaks become spaces. HTML entities and Markdown punctuation are
+  escaped, including URL punctuation, so evidence does not create HTML, images,
+  links, or report sections in the tested CommonMark/GFM renderer. The template
+  keeps its intended headings and table. Raw evidence is not modified.
+  These fixtures do not establish identical behavior in every Markdown viewer;
+  do not decode or concatenate untrusted HTML after rendering.
 - **Treat engagement config files as trusted input.** `promptfoo_config` points
   at a file that promptfoo can use to execute arbitrary code (`exec:` providers,
   custom scripts). Do not run a config file you did not write or review.
@@ -107,13 +117,14 @@ From the repository root, run the same minimal checks as
 
 ```bash
 cd references/ai-red-team/runner
-python -m pip install 'PyYAML==6.0.3'
+python -m pip install -r requirements-test.txt
 python -B -m unittest discover -v
 ```
 
-Use Python 3.12 to match CI. These 16 offline tests cover report redaction,
+Use Python 3.12 to match CI. `requirements-test.txt` pins PyYAML 6.0.3,
+markdown-it-py 4.2.0, and linkify-it-py 2.2.0 as test dependencies. These 20 offline tests cover report redaction,
 preservation of raw evidence, production `main()` success and failure paths
-with mocked tool commands, fail-closed configuration with real validation, and
-the actual Git ignore rules in temporary
-repositories. They do not require scanner dependencies, invoke scanners, call
+with mocked tool commands, fail-closed configuration with real validation,
+the actual Git ignore rules in temporary repositories, and report rendering
+with raw HTML and GFM autolinking enabled. They do not require scanner dependencies, invoke scanners, call
 model APIs, or verify a live service, SSH MCP integration, or all Talon features.

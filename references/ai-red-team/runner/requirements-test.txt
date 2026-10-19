@@ -1,0 +1,4 @@
+# Offline fixtures only. No scanners or live providers are installed.
+PyYAML==6.0.3
+markdown-it-py==4.2.0
+linkify-it-py==2.2.0

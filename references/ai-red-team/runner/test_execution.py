@@ -8,6 +8,7 @@ import unittest
 from unittest.mock import patch
 
 import redteam
+from report_test_support import rendered_text
 
 
 class ExecutionTests(unittest.TestCase):
@@ -36,23 +37,23 @@ class ExecutionTests(unittest.TestCase):
             status = redteam.main()
         reports = list(output_base.glob("*/findings-report.md"))
         self.assertEqual(len(reports), 0 if dry_run else 1)
-        report = reports[0].read_text() if reports else ""
+        report = rendered_text(reports[0].read_text()) if reports else ""
         return status, report, run_cmd, stdout.getvalue() + stderr.getvalue()
 
     def test_success_preserves_report_and_manual_guidance(self):
         status, report, run_cmd, _ = self.run_main()
         self.assertEqual(status, 0)
         run_cmd.assert_called_once()
-        self.assertIn("**Phases run:** 2_prompt_injection", report)
-        self.assertIn("**Execution failures:** 0", report)
-        self.assertIn("**1_recon**", report)
+        self.assertIn("Phases run: 2_prompt_injection", report)
+        self.assertIn("Execution failures: 0", report)
+        self.assertIn("1_recon", report)
 
     def test_garak_failures_preserve_report_and_return_nonzero(self):
         for code in (1, 124, 127):
             with self.subTest(code=code):
                 status, report, _, output = self.run_main((code, "Bearer synthetic-token"))
                 self.assertEqual(status, 1)
-                self.assertIn("**Execution failures:** 1", report)
+                self.assertIn("Execution failures: 1", report)
                 self.assertIn(f"garak exited {code}", report)
                 self.assertIn("Execution failures: 1", output)
                 logs = list((self.root / f"output-{self.invocation}").glob("*/2_prompt_injection.log"))
@@ -64,9 +65,9 @@ class ExecutionTests(unittest.TestCase):
         status, report, run_cmd, _ = self.run_main()
         self.assertEqual(status, 0)
         run_cmd.assert_not_called()
-        self.assertIn("**Phases run:** none", report)
-        self.assertIn("**Execution failures:** 0", report)
-        self.assertIn("**5_tool_abuse**", report)
+        self.assertIn("Phases run: none", report)
+        self.assertIn("Execution failures: 0", report)
+        self.assertIn("5_tool_abuse", report)
 
     def test_missing_promptfoo_config_fails_after_writing_report(self):
         self.cfg["phases"] = ["1_recon"]
@@ -74,7 +75,7 @@ class ExecutionTests(unittest.TestCase):
         status, report, run_cmd, _ = self.run_main()
         self.assertEqual(status, 1)
         run_cmd.assert_not_called()
-        self.assertIn("**Execution failures:** 1", report)
+        self.assertIn("Execution failures: 1", report)
         self.assertIn("config not found:", report)
 
     def test_promptfoo_success_and_failure(self):
@@ -90,7 +91,7 @@ class ExecutionTests(unittest.TestCase):
                 if code:
                     self.assertIn(f"promptfoo exited {code}", report)
                 else:
-                    self.assertIn("**Phases run:** promptfoo", report)
+                    self.assertIn("Phases run: promptfoo", report)
 
     def test_dry_run_does_not_execute_or_write_report(self):
         status, report, run_cmd, _ = self.run_main(dry_run=True)

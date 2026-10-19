@@ -24,7 +24,7 @@ npm install -g promptfoo      # phase 2 evals
 
 ```bash
 cp config.example.yaml config.yaml
-# edit config.yaml: set authorized: true, target, and api_key_env
+# edit config.yaml: set authorized: true, target name, and model
 export OPENAI_API_KEY=sk-...   # garak reads the provider environment variable
 ```
 
@@ -73,11 +73,11 @@ on the roadmap, and the runner refuses those types until it lands rather than
 hit the wrong target silently.
 
 For `openai`, leave `target.endpoint` empty and use
-`target.api_key_env: OPENAI_API_KEY`. Validation currently accepts a custom key
-variable and an HTTP(S) endpoint, but the garak command does not forward either
-setting. A custom variable can pass validation while garak reads a different
-`OPENAI_API_KEY`; the endpoint field does not select the invoked target. Fixing
-that configuration mismatch remains open.
+`target.api_key_env: OPENAI_API_KEY`. The garak command does not map custom key
+variables or pass through endpoint settings, so validation rejects those
+unsupported options before creating output or invoking tools, including during
+a dry run. This guards configuration fields only. garak inherits the process
+environment; review provider environment settings separately before testing.
 
 **Reading results:** the runner parses garak's `.hitlog.jsonl`, where every line
 is a confirmed hit. If it reports zero hits, open the raw hitlog and per-phase
@@ -86,9 +86,9 @@ is a confirmed hit. If it reports zero hits, open the raw hitlog and per-phase
 ## Safety
 
 - Runs only when `authorized: true` is set in the config.
-- Validation checks that the named key environment variable is set. garak reads
-  its provider environment variable directly; see the configuration limitation
-  above. The runner does not pass the key on a command line.
+- Validation requires `target.api_key_env: OPENAI_API_KEY` and checks that this
+  provider environment variable is set. garak reads it directly. The runner does
+  not pass the key on a command line.
 - Subprocesses are invoked with argument lists, never a shell.
 - Tool logs and the generated findings report redact a limited set of token
   patterns: `sk-`, `Bearer`, `xoxb-`, and certain GitHub token prefixes. This is
@@ -111,8 +111,9 @@ python -m pip install 'PyYAML==6.0.3'
 python -B -m unittest discover -v
 ```
 
-Use Python 3.12 to match CI. These 12 offline tests cover report redaction,
+Use Python 3.12 to match CI. These 16 offline tests cover report redaction,
 preservation of raw evidence, production `main()` success and failure paths
-with mocked tool commands, and the actual Git ignore rules in temporary
+with mocked tool commands, fail-closed configuration with real validation, and
+the actual Git ignore rules in temporary
 repositories. They do not require scanner dependencies, invoke scanners, call
 model APIs, or verify a live service, SSH MCP integration, or all Talon features.

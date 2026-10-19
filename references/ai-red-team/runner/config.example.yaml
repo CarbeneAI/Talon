@@ -9,8 +9,8 @@ target:
   name: "acme-support-bot"        # used only to name the output folder
   type: "openai"                  # only "openai" is wired today (compatible/rest = roadmap)
   model: "gpt-4o-mini"            # model name the provider expects
-  endpoint: ""                    # reserved for the roadmap compatible/rest types
-  api_key_env: "OPENAI_API_KEY"   # NAME of the env var holding the key (not the key)
+  endpoint: ""                    # must remain empty; custom endpoints are rejected
+  api_key_env: "OPENAI_API_KEY"   # required name; custom key variables are rejected
 
 # Which phases to run. garak-backed phases run automatically; the others print
 # guidance for the tester.

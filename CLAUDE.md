@@ -61,10 +61,15 @@ Ask Claude:
 ## Offline runner development
 
 From `references/ai-red-team/runner`, use Python 3.12 with PyYAML 6.0.3 and run
-`python -B -m unittest discover -v`. The 12 checks use synthetic evidence, mocked
-tool commands, and temporary Git repositories. They do not validate live tools
+`python -B -m unittest discover -v`. The 16 checks use synthetic evidence, mocked
+tool commands, real configuration validation, and temporary Git repositories. They do not validate live tools
 or integrations. See the runner README for status semantics and storage limits:
 requested automated failures return nonzero after writing the report; manual
 guidance alone does not fail. Directories named `engagements/` are ignored at
 any depth in the checkout. Keep custom evidence paths outside the
 repository or add explicit ignore rules before use.
+
+For the supported `openai` runner target, leave `target.endpoint` empty and use
+`target.api_key_env: OPENAI_API_KEY`. Unsupported values fail before creating
+output or invoking tools. Provider environment settings remain inherited and
+require separate review; these checks do not establish endpoint authenticity.

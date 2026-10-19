@@ -25,7 +25,6 @@ import re
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
-from urllib.parse import urlparse
 
 try:
     import yaml
@@ -106,13 +105,15 @@ def validate(cfg: dict) -> dict:
 
     endpoint = str(target.get("endpoint") or "").strip()
     if endpoint:
-        parsed = urlparse(endpoint)
-        if parsed.scheme not in {"http", "https"} or not parsed.netloc:
-            fail("target.endpoint must be an http(s) URL")
+        fail("target.endpoint is not supported for target.type 'openai'; "
+             "leave it empty. Custom endpoint routing is not wired.")
 
     key_env = str(target.get("api_key_env") or "").strip()
     if not key_env:
         fail("target.api_key_env is required (name of the env var holding the API key)")
+    if key_env != "OPENAI_API_KEY":
+        fail("target.api_key_env must be OPENAI_API_KEY for target.type 'openai'; "
+             "custom key variables are not mapped to garak.")
     if not os.environ.get(key_env):
         fail(f"environment variable {key_env} is not set (holds the target API key)")
 

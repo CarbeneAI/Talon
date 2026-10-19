@@ -20,6 +20,6 @@ jobs:
           python-version: '3.12'
       - name: Install test dependency
         run: python -m pip install 'PyYAML==6.0.3'
-      - name: Test report generation offline
+      - name: Test reports, command status, and ignore rules offline
         working-directory: references/ai-red-team/runner
         run: python -B -m unittest discover -v

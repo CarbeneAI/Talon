@@ -24,8 +24,8 @@ npm install -g promptfoo      # phase 2 evals
 
 ```bash
 cp config.example.yaml config.yaml
-# edit config.yaml — set authorized: true, target, and api_key_env
-export OPENAI_API_KEY=sk-...   # the runner reads the key from the env, never the file
+# edit config.yaml: set authorized: true, target, and api_key_env
+export OPENAI_API_KEY=sk-...   # garak reads the provider environment variable
 ```
 
 ## Run
@@ -38,7 +38,23 @@ python redteam.py --config config.yaml             # execute
 Output lands in `engagements/<target>-<timestamp>/`:
 - per-phase logs
 - raw garak JSONL reports
-- `findings-report.md` — untriaged skeleton
+- `findings-report.md`: untriaged skeleton
+
+The runner writes its report before returning status 1 if a requested automated
+command fails, times out, or is unavailable, or a configured promptfoo file is
+missing. The report lists execution failures separately from intentional manual
+phases. Status 0 means no execution failure was recorded; it does not establish
+a clean assessment or completion of manual work. Configuration errors also exit
+nonzero. A dry run writes no report and executes no probes.
+
+The repository ignores directories named `engagements/` anywhere in the checkout,
+so default output is covered from any working directory inside it, plus the copied
+`references/ai-red-team/runner/config.yaml` and root `.mcp.json`. Examples and
+fixtures outside `engagements/` remain trackable. Custom `--out` locations and
+custom config paths require your own ignore rules or storage outside the
+repository. Ignore rules do not protect files already tracked by Git. Keep
+evidence access restricted, follow the engagement retention agreement, review
+reports before sharing, and remove local evidence when that agreement requires.
 
 ## Phase coverage
 
@@ -56,6 +72,13 @@ and `rest` need a garak generator option file built from the endpoint; that is
 on the roadmap, and the runner refuses those types until it lands rather than
 hit the wrong target silently.
 
+For `openai`, leave `target.endpoint` empty and use
+`target.api_key_env: OPENAI_API_KEY`. Validation currently accepts a custom key
+variable and an HTTP(S) endpoint, but the garak command does not forward either
+setting. A custom variable can pass validation while garak reads a different
+`OPENAI_API_KEY`; the endpoint field does not select the invoked target. Fixing
+that configuration mismatch remains open.
+
 **Reading results:** the runner parses garak's `.hitlog.jsonl`, where every line
 is a confirmed hit. If it reports zero hits, open the raw hitlog and per-phase
 `.log` files to confirm the run actually executed before you call it clean.
@@ -63,8 +86,9 @@ is a confirmed hit. If it reports zero hits, open the raw hitlog and per-phase
 ## Safety
 
 - Runs only when `authorized: true` is set in the config.
-- The configured API key is read from its named environment variable. The runner
-  does not pass it on a command line.
+- Validation checks that the named key environment variable is set. garak reads
+  its provider environment variable directly; see the configuration limitation
+  above. The runner does not pass the key on a command line.
 - Subprocesses are invoked with argument lists, never a shell.
 - Tool logs and the generated findings report redact a limited set of token
   patterns: `sk-`, `Bearer`, `xoxb-`, and certain GitHub token prefixes. This is
@@ -87,7 +111,8 @@ python -m pip install 'PyYAML==6.0.3'
 python -B -m unittest discover -v
 ```
 
-Use Python 3.12 to match CI. These four offline regression tests cover findings
-report generation, token redaction, and preservation of raw evidence using
-synthetic files. They do not require scanner dependencies, invoke scanners, call
+Use Python 3.12 to match CI. These 12 offline tests cover report redaction,
+preservation of raw evidence, production `main()` success and failure paths
+with mocked tool commands, and the actual Git ignore rules in temporary
+repositories. They do not require scanner dependencies, invoke scanners, call
 model APIs, or verify a live service, SSH MCP integration, or all Talon features.

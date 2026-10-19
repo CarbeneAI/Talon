@@ -57,3 +57,14 @@ Ask Claude:
 - "Enumerate [service] on [IP]"
 - "I have a shell as [user] — check for PrivEsc paths"
 - "Generate a report for this engagement"
+
+## Offline runner development
+
+From `references/ai-red-team/runner`, use Python 3.12 with PyYAML 6.0.3 and run
+`python -B -m unittest discover -v`. The 12 checks use synthetic evidence, mocked
+tool commands, and temporary Git repositories. They do not validate live tools
+or integrations. See the runner README for status semantics and storage limits:
+requested automated failures return nonzero after writing the report; manual
+guidance alone does not fail. Directories named `engagements/` are ignored at
+any depth in the checkout. Keep custom evidence paths outside the
+repository or add explicit ignore rules before use.

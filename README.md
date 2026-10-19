@@ -84,7 +84,8 @@ Local scope stores the registration in `~/.claude.json` for this project.
 For a shared project configuration, Claude Code uses `.mcp.json` at the project
 root. [mcp-config.example.json](mcp-config.example.json) shows the structure only;
 replace its command and arguments using the provider's documentation before use.
-Do not overwrite an existing configuration or commit credentials or private keys.
+The root `.mcp.json` is ignored for local use. Do not overwrite an existing
+configuration or commit credentials or private keys.
 See the [official Claude Code MCP documentation](https://code.claude.com/docs/en/mcp)
 for registration, configuration scopes, and project server approval.
 
@@ -219,6 +220,13 @@ The templates use Obsidian callouts, mermaid diagrams, and checkbox lists for ef
 - [PAI (Personal AI Infrastructure)](https://github.com/CarbeneAI/PAI) — The open-source AI infrastructure system Talon was extracted from
 
 ---
+
+## Offline runner checks
+
+The [AI runner instructions](references/ai-red-team/runner/README.md#tests)
+describe 12 offline checks for report handling, mocked command status, and local
+configuration and evidence ignore rules. Run them on your workstation; they do
+not validate scanners, a live target, or an SSH MCP provider.
 
 ## Contributing
 

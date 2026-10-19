@@ -46,3 +46,8 @@ results/
 
 # Node (if any tooling added later)
 node_modules/
+
+# Local project configuration and default AI runner evidence
+/.mcp.json
+/references/ai-red-team/runner/config.yaml
+engagements/

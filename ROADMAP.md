@@ -11,8 +11,15 @@ scanning or attack capabilities.
   including metadata and phase notes, and scrubs hitlog text before truncation.
   Raw evidence remains unchanged and sensitive. Redaction is not comprehensive
   secret detection.
-- Four synthetic, offline regression tests cover report redaction, truncation,
-  ordinary formatting, and raw evidence preservation. The
+- Requested automated command failures, missing tools, and missing configured
+  promptfoo files are reported separately from manual guidance. The report is
+  preserved before the runner returns status 1; status 0 is not a clean assessment.
+- Default `engagements/` output at any depth in the checkout, the copied
+  runner config, and root `.mcp.json` are ignored. Temporary Git repositories
+  verify those rules while keeping examples and fixtures outside `engagements/` trackable. Custom
+  locations and already tracked files still require explicit handling.
+- Twelve offline tests cover report redaction, truncation, ordinary formatting,
+  raw evidence preservation, mocked execution status, and Git ignore rules. The
   [CI job](.github/workflows/runner-tests.yml) runs them with Python 3.12 and
   PyYAML 6.0.3. This does not validate scanners, live services, or SSH MCP.
 - Setup documentation identifies the SSH MCP example as a provider-dependent
@@ -53,8 +60,13 @@ Acceptance criteria:
 
 ### 3. Clarify configuration and engagement data handling
 
-Review where the runner writes reports, logs, raw evidence, and temporary files,
-and how those paths interact with repository ignore rules.
+Default output and local configuration ignore rules are now covered by offline
+fixtures. Review custom output paths, existing tracked evidence, temporary files,
+and the configured environment-variable contract before release. The supported
+`openai` command currently reads the provider environment directly; nonempty
+`target.endpoint` and custom `target.api_key_env` values are not passed through
+to garak. Resolve that mismatch before claiming those settings control the
+invoked target or credential.
 
 Acceptance criteria:
 - Synthetic checks verify the documented environment-variable key handling and
